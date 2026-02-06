@@ -122,7 +122,7 @@ final class SessionManager: SessionControlling {
 
         // Terminate existing process
         view.terminate()
-        view.resetLineBuffer()
+        view.resetForNewProcess()
 
         // Reset state
         if session.state == .attention {

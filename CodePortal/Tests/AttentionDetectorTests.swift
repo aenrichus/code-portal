@@ -58,14 +58,16 @@ struct AttentionDetectorTests {
         #expect(AttentionDetector.isAttention("Allow Bash(ls -la)?"))
     }
 
-    @Test("Detects Error: prefix")
-    func detectErrorCapital() {
-        #expect(AttentionDetector.isAttention("Error: something went wrong"))
+    @Test("Detects Allow case-insensitive")
+    func detectAllowCaseInsensitive() {
+        #expect(AttentionDetector.isAttention("allow read /etc/hosts?"))
+        #expect(AttentionDetector.isAttention("ALLOW Read /etc/hosts?"))
     }
 
-    @Test("Detects error: prefix (lowercase)")
-    func detectErrorLower() {
-        #expect(AttentionDetector.isAttention("error: compilation failed"))
+    @Test("Detects 'Do you want to' prompts")
+    func detectDoYouWant() {
+        #expect(AttentionDetector.isAttention("Do you want to proceed?"))
+        #expect(AttentionDetector.isAttention("do you want to continue?"))
     }
 
     @Test("Does not match normal output")
@@ -76,11 +78,10 @@ struct AttentionDetectorTests {
         #expect(!AttentionDetector.isAttention(""))
     }
 
-    @Test("Does not match error in the middle of a line")
-    func errorMiddleLine() {
-        // hasPrefix only, so "An error: foo" should NOT match
-        #expect(!AttentionDetector.isAttention("An error: happened"))
-        #expect(!AttentionDetector.isAttention("An Error: happened"))
+    @Test("Does not match partial Allow without question mark")
+    func allowWithoutQuestion() {
+        #expect(!AttentionDetector.isAttention("Allow"))
+        #expect(!AttentionDetector.isAttention("Allowing access to"))
     }
 
     @Test("Detects attention after ANSI stripping")
@@ -90,7 +91,74 @@ struct AttentionDetectorTests {
         #expect(AttentionDetector.isAttention(stripped))
     }
 
-    // MARK: - Line Buffer Processing
+    // MARK: - Buffer Scanning
+
+    @Test("scanBuffer finds attention in visible lines")
+    func scanBufferFindsAttention() {
+        let lines = [
+            "Claude Code",
+            "",
+            "  I'll read that file for you.",
+            "",
+            "  Allow Read /etc/hosts?",
+            "",
+            "  Yes  No  Always",
+        ]
+        let result = AttentionDetector.scanBuffer(lines)
+        #expect(result != nil)
+        #expect(result!.contains("Allow"))
+    }
+
+    @Test("scanBuffer returns nil for normal output")
+    func scanBufferNoAttention() {
+        let lines = [
+            "Claude Code",
+            "",
+            "  Building the project...",
+            "  Compiling main.swift",
+            "  Build succeeded",
+        ]
+        let result = AttentionDetector.scanBuffer(lines)
+        #expect(result == nil)
+    }
+
+    @Test("scanBuffer handles empty lines")
+    func scanBufferEmptyLines() {
+        let lines = ["", "", "", ""]
+        let result = AttentionDetector.scanBuffer(lines)
+        #expect(result == nil)
+    }
+
+    @Test("scanBuffer handles empty array")
+    func scanBufferEmptyArray() {
+        let result = AttentionDetector.scanBuffer([])
+        #expect(result == nil)
+    }
+
+    @Test("scanBuffer finds y/n prompt in terminal output")
+    func scanBufferYesNo() {
+        let lines = [
+            "Some output",
+            "Continue? (y/n)",
+            "",
+        ]
+        let result = AttentionDetector.scanBuffer(lines)
+        #expect(result != nil)
+        #expect(result!.contains("(y/n)"))
+    }
+
+    @Test("scanBuffer returns first matching line")
+    func scanBufferReturnsFirst() {
+        let lines = [
+            "Allow Read /tmp/a?",
+            "Allow Write /tmp/b?",
+        ]
+        let result = AttentionDetector.scanBuffer(lines)
+        #expect(result != nil)
+        #expect(result!.contains("/tmp/a"))
+    }
+
+    // MARK: - Legacy Line Buffer Processing
 
     @Test("Processes single complete line")
     func singleCompleteLine() {
@@ -144,10 +212,9 @@ struct AttentionDetectorTests {
     @Test("Strips ANSI before pattern matching")
     func ansiStrippedBeforeMatch() {
         var buffer = Data()
-        let data = Array("\u{1B}[33mError: oops\u{1B}[0m\n".utf8)
+        let data = Array("\u{1B}[33mAllow Read /etc/hosts?\u{1B}[0m\n".utf8)
         let results = AttentionDetector.processData(data[...], lineBuffer: &buffer)
         #expect(results.count == 1)
-        #expect(results[0].line == "Error: oops")
         #expect(results[0].isAttention == true)
     }
 
