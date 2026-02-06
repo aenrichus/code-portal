@@ -177,54 +177,6 @@ struct AttentionDetectorTests {
         #expect(result != nil)
     }
 
-    // MARK: - Waiting for Input Detection
-
-    @Test("isWaitingForInput detects idle prompt after task completion")
-    func waitingForInputAfterTask() {
-        let lines = [
-            "⏺ Done! The project has been built.",
-            "",
-            "────────────────────────────────────────",
-            "> Try \"write a test for <filepath>\"",
-            "────────────────────────────────────────",
-            "  ? for shortcuts",
-            "",
-        ]
-        #expect(AttentionDetector.isWaitingForInput(lines))
-    }
-
-    @Test("isWaitingForInput detects bare > prompt")
-    func waitingForInputBarePrompt() {
-        let lines = [
-            "some output",
-            "────────────────────────────────────────",
-            ">",
-            "────────────────────────────────────────",
-        ]
-        #expect(AttentionDetector.isWaitingForInput(lines))
-    }
-
-    @Test("isWaitingForInput returns false when no prompt present")
-    func notWaitingWhenNoPrompt() {
-        let lines = [
-            "⏺ Building the project...",
-            "  Compiling main.swift",
-            "",
-        ]
-        #expect(!AttentionDetector.isWaitingForInput(lines))
-    }
-
-    @Test("isWaitingForInput returns false for prompt without horizontal rule")
-    func notWaitingWithoutRule() {
-        // ">" without a horizontal rule above could be something else
-        let lines = [
-            "some text",
-            "> Try \"write a test\"",
-            "more text",
-        ]
-        #expect(!AttentionDetector.isWaitingForInput(lines))
-    }
-
     // MARK: - Legacy Line Buffer Processing
 
     @Test("Processes single complete line")

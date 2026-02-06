@@ -38,9 +38,6 @@ final class MonitoredTerminalView: LocalProcessTerminalView {
     /// emitting duplicate transitions.
     private var lastScanFoundAttention = false
 
-    /// Whether we've seen any real output yet (to distinguish initial launch from task completion).
-    private var hasSeenOutput = false
-
     // MARK: - Focus Management
 
     /// Request keyboard focus when the view enters a window.
@@ -55,8 +52,6 @@ final class MonitoredTerminalView: LocalProcessTerminalView {
     override func dataReceived(slice: ArraySlice<UInt8>) {
         // MUST call super for terminal rendering
         super.dataReceived(slice: slice)
-
-        hasSeenOutput = true
 
         // Reset debounce timer — scan will fire when output settles
         scanTimer?.invalidate()
@@ -82,20 +77,12 @@ final class MonitoredTerminalView: LocalProcessTerminalView {
 
         // Check for explicit attention patterns (questions, permission prompts)
         let matchedPattern = AttentionDetector.scanBuffer(visibleLines)
-        var needsAttention = matchedPattern != nil
-
-        // Also check if Claude finished its task and is waiting for the next input.
-        // Only flag this if we've seen actual output (not on initial launch).
-        if !needsAttention && hasSeenOutput {
-            if AttentionDetector.isWaitingForInput(visibleLines) {
-                needsAttention = true
-            }
-        }
+        let needsAttention = matchedPattern != nil
 
         if needsAttention && !lastScanFoundAttention {
             // Transition: running → attention
             lastScanFoundAttention = true
-            let pattern = matchedPattern ?? "Waiting for input"
+            let pattern = matchedPattern ?? ""
             let capturedSession = self.session
             let capturedManager = self.sessionManager
             Task { @MainActor in
@@ -148,6 +135,5 @@ final class MonitoredTerminalView: LocalProcessTerminalView {
         scanTimer?.invalidate()
         scanTimer = nil
         lastScanFoundAttention = false
-        hasSeenOutput = false
     }
 }

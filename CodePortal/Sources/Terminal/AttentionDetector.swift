@@ -17,11 +17,6 @@ import Foundation
 ///   Allow Bash(ls -la)?
 ///   Yes  No  Always
 ///
-/// Waiting for next input (task completed):
-///   ────────────────
-///   > Try "write a test for <filepath>"
-///   ────────────────
-///
 /// Working (NOT attention):
 ///   Thinking on (tab to toggle)
 ///   ⏺ Building the project...
@@ -81,37 +76,6 @@ enum AttentionDetector {
             }
         }
         return nil
-    }
-
-    /// Check if the terminal buffer shows Claude is waiting for user input
-    /// (task completed, idle prompt visible). This is detected by the presence
-    /// of the input prompt line: "> ..." preceded by a horizontal rule.
-    ///
-    /// Returns true if the buffer shows the idle input prompt, indicating
-    /// Claude has finished its task and is waiting for the next command.
-    static func isWaitingForInput(_ lines: [String]) -> Bool {
-        // Look for the input prompt pattern: a line starting with ">" that
-        // appears after content (not just the initial welcome screen).
-        // The pattern is: horizontal rule, then "> ...", then horizontal rule.
-        for (i, line) in lines.enumerated() {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            // Input prompt line starts with ">"
-            if trimmed.hasPrefix("> ") && !trimmed.hasPrefix("> Try") {
-                // This is a user-typed prompt (not the placeholder), skip
-                continue
-            }
-            // Check for the placeholder prompt specifically
-            if trimmed.hasPrefix("> Try ") || trimmed == ">" {
-                // Verify there's a horizontal rule nearby (within 2 lines before)
-                let hasRuleAbove = (max(0, i - 2)..<i).contains { idx in
-                    lines[idx].contains("────")
-                }
-                if hasRuleAbove {
-                    return true
-                }
-            }
-        }
-        return false
     }
 
     // MARK: - Legacy line-buffer processing (kept for raw-byte fallback)
