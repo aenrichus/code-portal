@@ -279,11 +279,11 @@ CodePortal/
 - [x] Implement repo removal with confirmation and PTY cleanup
 - [x] Implement graceful app quit: SIGTERM all sessions in loop, wait 3s, SIGKILL survivors, confirmation dialog if sessions active
 - [x] Implement session restart button (overlaid on terminal when process exited)
-- [ ] Set scrollback: 5,000 lines uniform
+- [x] Set scrollback: 5,000 lines uniform
 - [x] Register `codeportal://` URL scheme in Info.plist with explicit no-op handler in `AppDelegate` that logs and drops all invocations (prevents silent failure, makes future handler addition obvious)
-- [ ] Wire `SessionManager` notification logic to subscribe to `AsyncStream<SessionEvent>` from each session
-- [ ] Write unit tests for pattern matching (inline in `MonitoredTerminalView`) — `CodePortalTests/MonitoredTerminalViewTests.swift`
-- [ ] Write unit tests for session lifecycle + `SessionControlling` protocol conformance — `CodePortalTests/SessionManagerTests.swift`
+- [x] Wire `SessionManager` notification logic to subscribe to `AsyncStream<SessionEvent>` from each session
+- [x] Write unit tests for pattern matching (extracted to `AttentionDetector`) — `CodePortalTests/AttentionDetectorTests.swift`
+- [x] Write unit tests for session lifecycle + `SessionControlling` protocol conformance — `CodePortalTests/SessionLifecycleTests.swift`
 - [ ] Test: add 5+ repos, switch between them, verify terminal state preserved (no flicker, no scrollback loss)
 - [ ] Test: attention detection end-to-end (trigger permission prompt, verify sidebar + notification + badge)
 - [ ] Test: respond to prompt, verify attention clears
@@ -301,10 +301,10 @@ CodePortal/
 
 **Tasks:**
 
-- [ ] Keyboard shortcuts: Cmd+N (add), Cmd+W (remove with confirmation), Cmd+]/[ (next/prev repo), standard sidebar toggle
-- [ ] Claude CLI validation on launch: show helpful error if not found
+- [x] Keyboard shortcuts: Cmd+N (add), Cmd+W (remove with confirmation), Cmd+]/[ (next/prev repo)
+- [x] Claude CLI validation on launch: show helpful error if not found
 - [ ] Process group via SwiftTerm's `POSIX_SPAWN_SETSID` (already default): validate SIGHUP on PTY close kills child
-- [ ] Window title: show selected repo name
+- [x] Window title: show selected repo name
 - [ ] App icon (placeholder or design)
 - [ ] Test: 10+ concurrent repos (memory via Instruments, target <20 MB SwiftTerm buffers per session — 120-col × 5K lines × 32 bytes/CharData)
 - [ ] Test: tab switch latency (target <16ms via `os_signpost`)

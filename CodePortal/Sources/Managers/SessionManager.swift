@@ -166,9 +166,16 @@ final class SessionManager: SessionControlling {
 
     // MARK: - Terminal View Management
 
+    /// Uniform scrollback size for all terminal views: 5,000 lines.
+    private static let scrollbackLines = 5_000
+
     private func createTerminalView(for session: TerminalSession) {
         let view = MonitoredTerminalView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
         view.session = session
+        view.sessionManager = self
+
+        // Set scrollback to 5,000 lines (default is 500)
+        view.getTerminal().changeHistorySize(Self.scrollbackLines)
 
         // Configure process delegate for exit handling
         view.processDelegate = self
@@ -252,6 +259,19 @@ final class SessionManager: SessionControlling {
         return path
     }
 
+    /// Validate Claude CLI is available on launch. Shows alert if not found.
+    func validateClaudeCLI() {
+        let path = resolveClaudePath()
+        if !FileManager.default.isExecutableFile(atPath: path) {
+            let alert = NSAlert()
+            alert.messageText = "Claude CLI Not Found"
+            alert.informativeText = "Code Portal requires Claude Code CLI to run sessions.\n\nInstall it with:\nnpm install -g @anthropic-ai/claude-code\n\nOr ensure 'claude' is on your PATH."
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+        }
+    }
+
     // MARK: - Curated Environment
 
     /// Build an explicit allowlist environment for PTY processes.
@@ -278,13 +298,21 @@ final class SessionManager: SessionControlling {
 
     // MARK: - Notification Logic (~40 LOC)
 
+    /// Whether notifications are available (requires a valid bundle identifier).
+    private var notificationsAvailable: Bool {
+        Bundle.main.bundleIdentifier != nil
+    }
+
     func requestNotificationPermission() {
+        guard notificationsAvailable else { return }
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
     }
 
     /// Post a notification for a session needing attention.
     /// Suppress when app focused + session selected. State-machine deduplicates.
     func postAttentionNotification(for session: TerminalSession) {
+        guard notificationsAvailable else { return }
+
         // Suppress when focused and looking at this session
         if isAppFocused && selectedSessionId == session.id { return }
 
@@ -382,6 +410,57 @@ final class SessionManager: SessionControlling {
         } catch {
             // Log but don't crash
         }
+    }
+
+    // MARK: - Navigation
+
+    /// Select the next session in the list (wraps around).
+    func selectNextSession() {
+        guard !sessions.isEmpty else { return }
+        guard let currentId = selectedSessionId,
+              let index = sessions.firstIndex(where: { $0.id == currentId }) else {
+            selectedSessionId = sessions.first?.id
+            return
+        }
+        let nextIndex = (index + 1) % sessions.count
+        selectedSessionId = sessions[nextIndex].id
+    }
+
+    /// Select the previous session in the list (wraps around).
+    func selectPreviousSession() {
+        guard !sessions.isEmpty else { return }
+        guard let currentId = selectedSessionId,
+              let index = sessions.firstIndex(where: { $0.id == currentId }) else {
+            selectedSessionId = sessions.last?.id
+            return
+        }
+        let prevIndex = (index - 1 + sessions.count) % sessions.count
+        selectedSessionId = sessions[prevIndex].id
+    }
+
+    /// Name of the currently selected repo, if any.
+    var selectedRepoName: String? {
+        guard let id = selectedSessionId else { return nil }
+        return sessions.first(where: { $0.id == id })?.repo.name
+    }
+
+    /// Remove the currently selected session with confirmation.
+    func removeSelectedWithConfirmation() {
+        guard let id = selectedSessionId,
+              let session = sessions.first(where: { $0.id == id }) else { return }
+
+        let isActive = session.state != .idle
+        if isActive {
+            let alert = NSAlert()
+            alert.messageText = "Remove \(session.repo.name)?"
+            alert.informativeText = "The active Claude Code session will be terminated."
+            alert.addButton(withTitle: "Remove")
+            alert.addButton(withTitle: "Cancel")
+            alert.alertStyle = .warning
+            guard alert.runModal() == .alertFirstButtonReturn else { return }
+        }
+
+        removeRepo(id: id, caller: .userInterface)
     }
 
     // MARK: - App Lifecycle

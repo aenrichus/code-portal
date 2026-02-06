@@ -14,9 +14,11 @@ struct CodePortalApp: App {
         WindowGroup {
             ContentView(sessionManager: sessionManager)
                 .frame(minWidth: 700, minHeight: 500)
+                .navigationTitle(sessionManager.selectedRepoName ?? "Code Portal")
                 .onAppear {
                     appDelegate.sessionManager = sessionManager
                     sessionManager.requestNotificationPermission()
+                    sessionManager.validateClaudeCLI()
                 }
         }
         .windowStyle(.automatic)
@@ -27,6 +29,28 @@ struct CodePortalApp: App {
                     addRepoViaOpenPanel()
                 }
                 .keyboardShortcut("n", modifiers: .command)
+            }
+
+            CommandGroup(after: .newItem) {
+                Button("Close Project") {
+                    sessionManager.removeSelectedWithConfirmation()
+                }
+                .keyboardShortcut("w", modifiers: .command)
+                .disabled(sessionManager.selectedSessionId == nil)
+
+                Divider()
+
+                Button("Next Project") {
+                    sessionManager.selectNextSession()
+                }
+                .keyboardShortcut("]", modifiers: .command)
+                .disabled(sessionManager.sessions.count < 2)
+
+                Button("Previous Project") {
+                    sessionManager.selectPreviousSession()
+                }
+                .keyboardShortcut("[", modifiers: .command)
+                .disabled(sessionManager.sessions.count < 2)
             }
         }
     }
@@ -63,8 +87,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var sessionManager: SessionManager?
 
     func applicationWillFinishLaunching(_ notification: Notification) {
-        // Set notification delegate early (must be before applicationDidFinishLaunching)
-        UNUserNotificationCenter.current().delegate = self
+        // UNUserNotificationCenter requires a valid bundle identifier.
+        // `swift run` launches a bare executable without one — guard to prevent crash.
+        if Bundle.main.bundleIdentifier != nil {
+            UNUserNotificationCenter.current().delegate = self
+        }
 
         // Register for URL scheme events
         NSAppleEventManager.shared().setEventHandler(
