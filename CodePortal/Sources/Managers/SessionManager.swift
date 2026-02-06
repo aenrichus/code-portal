@@ -276,12 +276,16 @@ final class SessionManager: SessionControlling {
 
     /// Build an explicit allowlist environment for PTY processes.
     /// Strip all DYLD_* variables (prevents dynamic library injection).
+    ///
+    /// When launched from Finder, PATH is minimal (/usr/bin:/bin:/usr/sbin:/sbin).
+    /// We augment it with common Node.js/tool install locations and the directory
+    /// containing the resolved Claude CLI, so `#!/usr/bin/env node` can find node.
     private func buildCuratedEnvironment() -> [String] {
         let currentEnv = ProcessInfo.processInfo.environment
         var env: [String] = []
 
-        // Allowlisted variables
-        let allowlist = ["PATH", "HOME", "USER", "SHELL", "LANG",
+        // Allowlisted variables (except PATH, handled separately)
+        let allowlist = ["HOME", "USER", "SHELL", "LANG",
                          "ANTHROPIC_API_KEY", "CLAUDE_API_KEY"]
 
         for key in allowlist {
@@ -290,10 +294,79 @@ final class SessionManager: SessionControlling {
             }
         }
 
+        // Build a robust PATH that works both from terminal and Finder launch.
+        let path = buildRobustPath()
+        env.append("PATH=\(path)")
+
         // Always set TERM
         env.append("TERM=xterm-256color")
 
         return env
+    }
+
+    /// Construct PATH by merging the inherited PATH with well-known tool directories.
+    /// Ensures `node`, `claude`, and other CLI tools are reachable even when launched
+    /// from Finder (where PATH is just /usr/bin:/bin:/usr/sbin:/sbin).
+    private func buildRobustPath() -> String {
+        let home = NSHomeDirectory()
+
+        // Well-known directories where node/claude commonly live.
+        // Order: user-specific first, then system-wide.
+        let wellKnownDirs = [
+            "\(home)/.nvm/versions/node",   // nvm — expanded below
+            "\(home)/.local/bin",
+            "\(home)/.npm/bin",
+            "/opt/homebrew/bin",
+            "/opt/homebrew/sbin",
+            "/usr/local/bin",
+        ]
+
+        // Start with inherited PATH components
+        let inheritedPath = ProcessInfo.processInfo.environment["PATH"] ?? ""
+        var components = inheritedPath.split(separator: ":").map(String.init)
+
+        // Add the directory containing the resolved Claude CLI
+        let claudePath = resolveClaudePath()
+        let claudeDir = (claudePath as NSString).deletingLastPathComponent
+        if !claudeDir.isEmpty && !components.contains(claudeDir) {
+            components.insert(claudeDir, at: 0)
+        }
+
+        // Expand nvm: find the highest installed node version's bin dir
+        let nvmBase = "\(home)/.nvm/versions/node"
+        if let nodeVersions = try? FileManager.default.contentsOfDirectory(atPath: nvmBase) {
+            // Sort descending to prefer newest version
+            let sorted = nodeVersions.sorted { $0.localizedStandardCompare($1) == .orderedDescending }
+            for version in sorted {
+                let binDir = "\(nvmBase)/\(version)/bin"
+                if FileManager.default.isExecutableFile(atPath: "\(binDir)/node") {
+                    if !components.contains(binDir) {
+                        components.insert(binDir, at: 0)
+                    }
+                    break
+                }
+            }
+        }
+
+        // Add other well-known dirs if they exist and aren't already present
+        for dir in wellKnownDirs {
+            if dir.contains(".nvm") { continue }  // handled above
+            var isDir: ObjCBool = false
+            if FileManager.default.fileExists(atPath: dir, isDirectory: &isDir),
+               isDir.boolValue,
+               !components.contains(dir) {
+                components.append(dir)
+            }
+        }
+
+        // Always include system essentials
+        for sysDir in ["/usr/bin", "/bin", "/usr/sbin", "/sbin"] {
+            if !components.contains(sysDir) {
+                components.append(sysDir)
+            }
+        }
+
+        return components.joined(separator: ":")
     }
 
     // MARK: - Notification Logic (~40 LOC)

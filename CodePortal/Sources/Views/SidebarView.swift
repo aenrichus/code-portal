@@ -21,6 +21,13 @@ struct SidebarView: View {
             }
         }
         .navigationTitle("Projects")
+        .onAppear {
+            // Auto-start persisted sessions on launch.
+            // onChange won't fire for the initial value set in loadPersistedRepos.
+            if let id = sessionManager.selectedSessionId {
+                sessionManager.startSession(id: id)
+            }
+        }
         .onChange(of: sessionManager.selectedSessionId) { _, newId in
             // Lazy session start: spawn PTY on first selection
             if let id = newId {

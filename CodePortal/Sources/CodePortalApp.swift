@@ -102,6 +102,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
     }
 
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        // Activate the app and bring its window to the front.
+        // Critical when launched via `swift run` — without this the terminal
+        // that spawned the process retains keyboard focus.
+        NSApplication.shared.activate(ignoringOtherApps: true)
+    }
+
     func applicationDidBecomeActive(_ notification: Notification) {
         Task { @MainActor in
             sessionManager?.isAppFocused = true

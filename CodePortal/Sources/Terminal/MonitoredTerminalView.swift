@@ -20,6 +20,17 @@ final class MonitoredTerminalView: LocalProcessTerminalView {
     /// Line buffer for accumulating partial lines between dataReceived calls.
     private var lineBuffer = Data()
 
+    // MARK: - Focus Management
+
+    /// Request keyboard focus when the view enters a window.
+    /// This is the reliable callback — `updateNSView` in NSViewRepresentable fires
+    /// before the view is in a window, so `makeFirstResponder` silently fails.
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        guard let window = window else { return }
+        window.makeFirstResponder(self)
+    }
+
     // MARK: - Output Monitoring
 
     override func dataReceived(slice: ArraySlice<UInt8>) {
