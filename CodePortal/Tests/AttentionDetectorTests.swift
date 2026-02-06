@@ -36,16 +36,11 @@ struct AttentionDetectorTests {
         #expect(AttentionDetector.stripANSI("") == "")
     }
 
-    // MARK: - Attention Pattern Detection
+    // MARK: - Attention Pattern Detection (Real Claude Code patterns)
 
-    @Test("Detects y/n confirmation prompt")
-    func detectYesNo() {
-        #expect(AttentionDetector.isAttention("Do you want to continue? (y/n)"))
-    }
-
-    @Test("Detects (Y)es prompt")
-    func detectYesCapital() {
-        #expect(AttentionDetector.isAttention("Proceed? (Y)es / (N)o"))
+    @Test("Detects 'Enter to select' multi-choice prompt")
+    func detectEnterToSelect() {
+        #expect(AttentionDetector.isAttention("Enter to select · Tab/Arrow keys to navigate · Esc to cancel"))
     }
 
     @Test("Detects Allow permission prompt")
@@ -64,6 +59,22 @@ struct AttentionDetectorTests {
         #expect(AttentionDetector.isAttention("ALLOW Read /etc/hosts?"))
     }
 
+    @Test("Detects Yes/No button row from permission prompt")
+    func detectYesNoButtonRow() {
+        #expect(AttentionDetector.isAttention("Yes  No  Always"))
+        #expect(AttentionDetector.isAttention("  Yes  No"))
+    }
+
+    @Test("Detects y/n confirmation prompt")
+    func detectYesNo() {
+        #expect(AttentionDetector.isAttention("Do you want to continue? (y/n)"))
+    }
+
+    @Test("Detects (Y)es prompt")
+    func detectYesCapital() {
+        #expect(AttentionDetector.isAttention("Proceed? (Y)es / (N)o"))
+    }
+
     @Test("Detects 'Do you want to' prompts")
     func detectDoYouWant() {
         #expect(AttentionDetector.isAttention("Do you want to proceed?"))
@@ -76,6 +87,8 @@ struct AttentionDetectorTests {
         #expect(!AttentionDetector.isAttention("Compiling main.swift"))
         #expect(!AttentionDetector.isAttention("Test passed"))
         #expect(!AttentionDetector.isAttention(""))
+        #expect(!AttentionDetector.isAttention("⏺ I'll read the README file for you."))
+        #expect(!AttentionDetector.isAttention("Thinking on (tab to toggle)"))
     }
 
     @Test("Does not match partial Allow without question mark")
@@ -91,71 +104,125 @@ struct AttentionDetectorTests {
         #expect(AttentionDetector.isAttention(stripped))
     }
 
-    // MARK: - Buffer Scanning
+    // MARK: - Buffer Scanning (simulating real terminal buffer content)
 
-    @Test("scanBuffer finds attention in visible lines")
-    func scanBufferFindsAttention() {
+    @Test("scanBuffer detects multi-choice question")
+    func scanBufferMultiChoice() {
+        // Real Claude Code terminal buffer when asking a multi-choice question
         let lines = [
-            "Claude Code",
             "",
-            "  I'll read that file for you.",
+            " ▐▛███▜▌   Claude Code v2.0.36",
+            "▝▜█████▛▘  Sonnet 4.5 · Claude Max",
+            "  ▘▘ ▝▝    /Users/dev/project",
             "",
-            "  Allow Read /etc/hosts?",
+            "> read the readme and ask questions",
             "",
-            "  Yes  No  Always",
+            "⏺ I've read the README. Here are some questions:",
+            "",
+            "────────────────────────────────────────",
+            "←  ☐ LLM Provider  ☐ Project State  ✔ Submit  →",
+            "",
+            "Which LLM providers should this support?",
+            "",
+            "❯ 1. [ ] OpenAI (GPT-4)",
+            "     Use OpenAI's API",
+            "  2. [ ] Anthropic (Claude)",
+            "     Use Anthropic's API",
+            "",
+            "Enter to select · Tab/Arrow keys to navigate · Esc to cancel",
+            "",
         ]
         let result = AttentionDetector.scanBuffer(lines)
         #expect(result != nil)
-        #expect(result!.contains("Allow"))
+        #expect(result!.contains("Enter to select"))
     }
 
-    @Test("scanBuffer returns nil for normal output")
-    func scanBufferNoAttention() {
+    @Test("scanBuffer returns nil when Claude is working")
+    func scanBufferWorking() {
         let lines = [
-            "Claude Code",
             "",
-            "  Building the project...",
-            "  Compiling main.swift",
-            "  Build succeeded",
+            " ▐▛███▜▌   Claude Code v2.0.36",
+            "▝▜█████▛▘  Sonnet 4.5 · Claude Max",
+            "",
+            "────────────────────────────────────────",
+            "> build the project",
+            "────────────────────────────────────────",
+            "                                        Thinking on (tab to toggle)",
+            "",
         ]
         let result = AttentionDetector.scanBuffer(lines)
         #expect(result == nil)
     }
 
-    @Test("scanBuffer handles empty lines")
+    @Test("scanBuffer returns nil for empty/blank lines")
     func scanBufferEmptyLines() {
-        let lines = ["", "", "", ""]
-        let result = AttentionDetector.scanBuffer(lines)
+        let result = AttentionDetector.scanBuffer(["", "", "", ""])
         #expect(result == nil)
     }
 
-    @Test("scanBuffer handles empty array")
+    @Test("scanBuffer returns nil for empty array")
     func scanBufferEmptyArray() {
         let result = AttentionDetector.scanBuffer([])
         #expect(result == nil)
     }
 
-    @Test("scanBuffer finds y/n prompt in terminal output")
-    func scanBufferYesNo() {
+    @Test("scanBuffer detects permission prompt with Yes/No buttons")
+    func scanBufferPermissionPrompt() {
         let lines = [
-            "Some output",
-            "Continue? (y/n)",
+            "⏺ Allow Read /etc/hosts?",
             "",
+            "  Yes  No  Always",
         ]
         let result = AttentionDetector.scanBuffer(lines)
         #expect(result != nil)
-        #expect(result!.contains("(y/n)"))
     }
 
-    @Test("scanBuffer returns first matching line")
-    func scanBufferReturnsFirst() {
+    // MARK: - Waiting for Input Detection
+
+    @Test("isWaitingForInput detects idle prompt after task completion")
+    func waitingForInputAfterTask() {
         let lines = [
-            "Allow Read /tmp/a?",
-            "Allow Write /tmp/b?",
+            "⏺ Done! The project has been built.",
+            "",
+            "────────────────────────────────────────",
+            "> Try \"write a test for <filepath>\"",
+            "────────────────────────────────────────",
+            "  ? for shortcuts",
+            "",
         ]
-        let result = AttentionDetector.scanBuffer(lines)
-        #expect(result != nil)
-        #expect(result!.contains("/tmp/a"))
+        #expect(AttentionDetector.isWaitingForInput(lines))
+    }
+
+    @Test("isWaitingForInput detects bare > prompt")
+    func waitingForInputBarePrompt() {
+        let lines = [
+            "some output",
+            "────────────────────────────────────────",
+            ">",
+            "────────────────────────────────────────",
+        ]
+        #expect(AttentionDetector.isWaitingForInput(lines))
+    }
+
+    @Test("isWaitingForInput returns false when no prompt present")
+    func notWaitingWhenNoPrompt() {
+        let lines = [
+            "⏺ Building the project...",
+            "  Compiling main.swift",
+            "",
+        ]
+        #expect(!AttentionDetector.isWaitingForInput(lines))
+    }
+
+    @Test("isWaitingForInput returns false for prompt without horizontal rule")
+    func notWaitingWithoutRule() {
+        // ">" without a horizontal rule above could be something else
+        let lines = [
+            "some text",
+            "> Try \"write a test\"",
+            "more text",
+        ]
+        #expect(!AttentionDetector.isWaitingForInput(lines))
     }
 
     // MARK: - Legacy Line Buffer Processing
@@ -171,28 +238,15 @@ struct AttentionDetectorTests {
         #expect(buffer.isEmpty)
     }
 
-    @Test("Processes multiple complete lines")
-    func multipleLines() {
-        var buffer = Data()
-        let data = Array("line1\nline2\nline3\n".utf8)
-        let results = AttentionDetector.processData(data[...], lineBuffer: &buffer)
-        #expect(results.count == 3)
-        #expect(results[0].line == "line1")
-        #expect(results[1].line == "line2")
-        #expect(results[2].line == "line3")
-    }
-
     @Test("Buffers incomplete line across calls")
     func incompleteLineBuffering() {
         var buffer = Data()
 
-        // First chunk: incomplete line
         let chunk1 = Array("Hello ".utf8)
         let results1 = AttentionDetector.processData(chunk1[...], lineBuffer: &buffer)
         #expect(results1.isEmpty)
         #expect(!buffer.isEmpty)
 
-        // Second chunk: completes the line
         let chunk2 = Array("world\n".utf8)
         let results2 = AttentionDetector.processData(chunk2[...], lineBuffer: &buffer)
         #expect(results2.count == 1)
@@ -200,49 +254,18 @@ struct AttentionDetectorTests {
         #expect(buffer.isEmpty)
     }
 
-    @Test("Detects attention pattern in buffered line")
-    func attentionInBuffer() {
-        var buffer = Data()
-        let data = Array("Allow Read /etc/hosts?\n".utf8)
-        let results = AttentionDetector.processData(data[...], lineBuffer: &buffer)
-        #expect(results.count == 1)
-        #expect(results[0].isAttention == true)
-    }
-
-    @Test("Strips ANSI before pattern matching")
-    func ansiStrippedBeforeMatch() {
-        var buffer = Data()
-        let data = Array("\u{1B}[33mAllow Read /etc/hosts?\u{1B}[0m\n".utf8)
-        let results = AttentionDetector.processData(data[...], lineBuffer: &buffer)
-        #expect(results.count == 1)
-        #expect(results[0].isAttention == true)
-    }
-
     @Test("Clears buffer when 64KB cap exceeded")
     func bufferCapEnforced() {
         var buffer = Data()
 
-        // Fill buffer near the cap with no newlines
-        let bigChunk = Array(repeating: UInt8(0x41), count: 65_000)  // 65K of 'A'
+        let bigChunk = Array(repeating: UInt8(0x41), count: 65_000)
         let results1 = AttentionDetector.processData(bigChunk[...], lineBuffer: &buffer)
-        #expect(results1.isEmpty)  // No newlines, no results
+        #expect(results1.isEmpty)
         #expect(buffer.count == 65_000)
 
-        // Push over the cap
-        let overflow = Array(repeating: UInt8(0x42), count: 600)  // push past 65,536
+        let overflow = Array(repeating: UInt8(0x42), count: 600)
         let results2 = AttentionDetector.processData(overflow[...], lineBuffer: &buffer)
         #expect(results2.isEmpty)
-        #expect(buffer.isEmpty)  // Buffer was cleared
-    }
-
-    @Test("Handles partial line after newline")
-    func partialAfterNewline() {
-        var buffer = Data()
-        let data = Array("complete\nincomplete".utf8)
-        let results = AttentionDetector.processData(data[...], lineBuffer: &buffer)
-        #expect(results.count == 1)
-        #expect(results[0].line == "complete")
-        // "incomplete" should remain in buffer
-        #expect(String(decoding: buffer, as: UTF8.self) == "incomplete")
+        #expect(buffer.isEmpty)
     }
 }

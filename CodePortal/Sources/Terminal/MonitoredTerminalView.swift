@@ -11,7 +11,7 @@ import SwiftTerm
 /// 1. `dataReceived` resets a short timer on every data chunk.
 /// 2. When output settles (no new data for `scanDelay`), the timer fires.
 /// 3. We read SwiftTerm's parsed visible buffer via `getTerminal().getLine(row:)`.
-/// 4. Scan the visible text for attention patterns using `AttentionDetector.scanBuffer()`.
+/// 4. Scan the visible text for attention patterns using `AttentionDetector`.
 ///
 /// This handles TUI apps correctly because we read the already-rendered screen content,
 /// not the raw escape sequences used to draw it.
@@ -38,11 +38,12 @@ final class MonitoredTerminalView: LocalProcessTerminalView {
     /// emitting duplicate transitions.
     private var lastScanFoundAttention = false
 
+    /// Whether we've seen any real output yet (to distinguish initial launch from task completion).
+    private var hasSeenOutput = false
+
     // MARK: - Focus Management
 
     /// Request keyboard focus when the view enters a window.
-    /// This is the reliable callback — `updateNSView` in NSViewRepresentable fires
-    /// before the view is in a window, so `makeFirstResponder` silently fails.
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         guard let window = window else { return }
@@ -55,11 +56,11 @@ final class MonitoredTerminalView: LocalProcessTerminalView {
         // MUST call super for terminal rendering
         super.dataReceived(slice: slice)
 
+        hasSeenOutput = true
+
         // Reset debounce timer — scan will fire when output settles
         scanTimer?.invalidate()
         scanTimer = Timer.scheduledTimer(withTimeInterval: Self.scanDelay, repeats: false) { [weak self] _ in
-            // Timer fires on RunLoop.main (main thread). Use MainActor.assumeIsolated
-            // since LocalProcessTerminalView is MainActor-isolated.
             MainActor.assumeIsolated {
                 self?.scanTerminalBuffer()
             }
@@ -67,7 +68,6 @@ final class MonitoredTerminalView: LocalProcessTerminalView {
     }
 
     /// Read the visible terminal buffer and check for attention patterns.
-    /// Called on the main thread (Timer fires on RunLoop.main).
     private func scanTerminalBuffer() {
         let terminal = getTerminal()
         let rowCount = terminal.rows
@@ -80,13 +80,22 @@ final class MonitoredTerminalView: LocalProcessTerminalView {
             }
         }
 
+        // Check for explicit attention patterns (questions, permission prompts)
         let matchedPattern = AttentionDetector.scanBuffer(visibleLines)
-        let needsAttention = matchedPattern != nil
+        var needsAttention = matchedPattern != nil
+
+        // Also check if Claude finished its task and is waiting for the next input.
+        // Only flag this if we've seen actual output (not on initial launch).
+        if !needsAttention && hasSeenOutput {
+            if AttentionDetector.isWaitingForInput(visibleLines) {
+                needsAttention = true
+            }
+        }
 
         if needsAttention && !lastScanFoundAttention {
             // Transition: running → attention
             lastScanFoundAttention = true
-            let pattern = matchedPattern ?? ""
+            let pattern = matchedPattern ?? "Waiting for input"
             let capturedSession = self.session
             let capturedManager = self.sessionManager
             Task { @MainActor in
@@ -100,7 +109,7 @@ final class MonitoredTerminalView: LocalProcessTerminalView {
                 }
             }
         } else if !needsAttention && lastScanFoundAttention {
-            // Transition: attention → running (auto-recovery)
+            // Transition: attention → running (auto-recovery when Claude starts working again)
             lastScanFoundAttention = false
             let capturedSession = self.session
             let capturedManager = self.sessionManager
@@ -118,7 +127,6 @@ final class MonitoredTerminalView: LocalProcessTerminalView {
 
     /// Called when the process exits. Updates session state and finishes continuations.
     func handleProcessTerminated(exitCode: Int32?) {
-        // Clean up scan timer
         scanTimer?.invalidate()
         scanTimer = nil
         lastScanFoundAttention = false
@@ -140,5 +148,6 @@ final class MonitoredTerminalView: LocalProcessTerminalView {
         scanTimer?.invalidate()
         scanTimer = nil
         lastScanFoundAttention = false
+        hasSeenOutput = false
     }
 }

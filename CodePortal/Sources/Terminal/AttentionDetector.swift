@@ -6,11 +6,28 @@ import Foundation
 /// Strategy: Claude Code is an Ink (React for CLI) TUI that renders via cursor
 /// repositioning, NOT newline-delimited lines. We read the terminal's visible
 /// buffer (already parsed by SwiftTerm) and scan it for attention patterns.
+///
+/// Real Claude Code terminal buffer patterns (from debug captures):
+///
+/// Multi-choice question:
+///   ❯ 1. [ ] OpenAI (GPT-4, GPT-3.5)
+///   Enter to select · Tab/Arrow keys to navigate · Esc to cancel
+///
+/// Permission prompt (tool approval):
+///   Allow Bash(ls -la)?
+///   Yes  No  Always
+///
+/// Waiting for next input (task completed):
+///   ────────────────
+///   > Try "write a test for <filepath>"
+///   ────────────────
+///
+/// Working (NOT attention):
+///   Thinking on (tab to toggle)
+///   ⏺ Building the project...
 enum AttentionDetector {
 
     /// ANSI escape sequence pattern for stripping terminal formatting.
-    /// Single-pass DFA scan. Matches CSI sequences like \e[0m, \e[32;1m, etc.
-    /// nonisolated(unsafe): Regex<Substring> is not Sendable but this is immutable after init.
     nonisolated(unsafe) static let ansiPattern = /\e\[[0-9;]*[a-zA-Z]/
 
     /// Strip ANSI escape sequences from a line.
@@ -18,18 +35,27 @@ enum AttentionDetector {
         input.replacing(ansiPattern, with: "")
     }
 
-    /// Patterns that indicate Claude Code needs attention.
-    /// Checked against each visible line of the terminal buffer (already ANSI-free
-    /// since we read from SwiftTerm's parsed buffer, not raw bytes).
+    /// Patterns that indicate Claude Code needs user attention.
+    /// Checked against each visible line of the terminal buffer.
     ///
-    /// Hardcoded for v1. If Claude Code changes output format, ship an app update.
+    /// These are derived from actual Claude Code terminal buffer captures.
     static let attentionPatterns: [@Sendable (String) -> Bool] = [
-        // Claude Code permission prompts: "Allow Read file.txt?" / "Allow Bash(ls)?"
+        // Multi-choice / interactive question UI
+        // "Enter to select · Tab/Arrow keys to navigate · Esc to cancel"
+        { $0.contains("Enter to select") },
+
+        // Permission / tool approval prompts
+        // "Allow Read /etc/hosts?" or "Allow Bash(ls -la)?"
         { $0.range(of: #"(?i)allow .+\?"#, options: .regularExpression) != nil },
-        // Yes/no confirmation prompts
+
+        // Yes/No button row (permission prompt buttons)
+        // "  Yes  No  Always" — but not inside normal prose
+        { $0.range(of: #"^\s*(Yes|No|Always)\s+(Yes|No|Always)"#, options: .regularExpression) != nil },
+
+        // Yes/no confirmation prompts (generic)
         { $0.contains("? (y/n)") },
-        // Capitalized yes prompts: "(Y)es / (N)o"
         { $0.contains("(Y)es") },
+
         // "Do you want to proceed?" style prompts
         { $0.range(of: #"(?i)do you want to .+\?"#, options: .regularExpression) != nil },
     ]
@@ -57,15 +83,43 @@ enum AttentionDetector {
         return nil
     }
 
+    /// Check if the terminal buffer shows Claude is waiting for user input
+    /// (task completed, idle prompt visible). This is detected by the presence
+    /// of the input prompt line: "> ..." preceded by a horizontal rule.
+    ///
+    /// Returns true if the buffer shows the idle input prompt, indicating
+    /// Claude has finished its task and is waiting for the next command.
+    static func isWaitingForInput(_ lines: [String]) -> Bool {
+        // Look for the input prompt pattern: a line starting with ">" that
+        // appears after content (not just the initial welcome screen).
+        // The pattern is: horizontal rule, then "> ...", then horizontal rule.
+        for (i, line) in lines.enumerated() {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            // Input prompt line starts with ">"
+            if trimmed.hasPrefix("> ") && !trimmed.hasPrefix("> Try") {
+                // This is a user-typed prompt (not the placeholder), skip
+                continue
+            }
+            // Check for the placeholder prompt specifically
+            if trimmed.hasPrefix("> Try ") || trimmed == ">" {
+                // Verify there's a horizontal rule nearby (within 2 lines before)
+                let hasRuleAbove = (max(0, i - 2)..<i).contains { idx in
+                    lines[idx].contains("────")
+                }
+                if hasRuleAbove {
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
     // MARK: - Legacy line-buffer processing (kept for raw-byte fallback)
 
-    /// Maximum line buffer size: 64KB. Prevents OOM from binary/no-newline streams.
+    /// Maximum line buffer size: 64KB.
     static let lineBufferCap = 65_536
 
     /// Process raw terminal data against a line buffer.
-    /// Returns an array of (stripped_line, is_attention) tuples for each complete line found.
-    /// Mutates the lineBuffer in place.
-    ///
     /// NOTE: This only fires on newline-delimited output. For TUI apps like Claude Code
     /// that use cursor repositioning, use scanBuffer() with timer-based polling instead.
     static func processData(
@@ -74,7 +128,6 @@ enum AttentionDetector {
     ) -> [(line: String, isAttention: Bool)] {
         lineBuffer.append(contentsOf: data)
 
-        // 64KB cap: prevents OOM from binary/no-newline output
         if lineBuffer.count > lineBufferCap {
             lineBuffer.removeAll(keepingCapacity: true)
             return []
@@ -82,7 +135,6 @@ enum AttentionDetector {
 
         var results: [(String, Bool)] = []
 
-        // Process complete lines
         while let newlineIndex = lineBuffer.firstIndex(of: 0x0A) {
             let lineData = lineBuffer[lineBuffer.startIndex..<newlineIndex]
             let line = String(decoding: lineData, as: UTF8.self)
