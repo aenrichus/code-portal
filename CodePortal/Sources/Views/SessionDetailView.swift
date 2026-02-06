@@ -86,19 +86,18 @@ private struct TerminalViewWrapper: NSViewRepresentable {
     let sessionId: UUID
     let sessionManager: SessionManager
 
-    func makeNSView(context: Context) -> NSView {
-        // Container view that holds the terminal
-        let container = NSView()
+    func makeNSView(context: Context) -> TerminalContainerView {
+        let container = TerminalContainerView()
         container.autoresizesSubviews = true
         updateTerminalChild(in: container)
         return container
     }
 
-    func updateNSView(_ container: NSView, context: Context) {
+    func updateNSView(_ container: TerminalContainerView, context: Context) {
         updateTerminalChild(in: container)
     }
 
-    private func updateTerminalChild(in container: NSView) {
+    private func updateTerminalChild(in container: TerminalContainerView) {
         guard let terminalView = sessionManager.terminalViewPool[sessionId] else { return }
 
         // Only reparent if not already a child of this container
@@ -112,17 +111,50 @@ private struct TerminalViewWrapper: NSViewRepresentable {
             container.addSubview(terminalView)
         }
 
-        // Ensure the terminal view has keyboard focus
-        if let window = container.window, window.firstResponder !== terminalView {
-            window.makeFirstResponder(terminalView)
+        // Store reference for click-to-focus
+        container.terminalView = terminalView
+
+        // Defer focus request until after SwiftUI's layout pass completes.
+        // Calling makeFirstResponder during updateNSView is overridden by SwiftUI.
+        DispatchQueue.main.async {
+            guard let window = container.window else { return }
+            if window.firstResponder !== terminalView {
+                window.makeFirstResponder(terminalView)
+            }
         }
     }
 
-    static func dismantleNSView(_ nsView: NSView, coordinator: ()) {
-        // Don't remove the terminal view — it lives in the pool.
-        // Only remove the container's reference to it.
+    static func dismantleNSView(_ nsView: TerminalContainerView, coordinator: ()) {
+        nsView.terminalView = nil
         for subview in nsView.subviews {
             subview.removeFromSuperview()
         }
+    }
+}
+
+// MARK: - Terminal Container View
+
+/// Container NSView that forwards mouse clicks to make the terminal first responder.
+/// Necessary because SwiftUI's focus system fights with AppKit's firstResponder.
+final class TerminalContainerView: NSView {
+    weak var terminalView: NSView?
+
+    override func mouseDown(with event: NSEvent) {
+        super.mouseDown(with: event)
+        if let tv = terminalView, let window = self.window, window.firstResponder !== tv {
+            window.makeFirstResponder(tv)
+        }
+    }
+
+    override var acceptsFirstResponder: Bool { true }
+
+    override func becomeFirstResponder() -> Bool {
+        // When the container gets focus, immediately forward to the terminal view
+        if let tv = terminalView, let window = self.window {
+            DispatchQueue.main.async {
+                window.makeFirstResponder(tv)
+            }
+        }
+        return true
     }
 }
