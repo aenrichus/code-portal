@@ -4,14 +4,13 @@ set -euo pipefail
 # Build Code Portal.app — produces a proper macOS .app bundle.
 # Usage: ./scripts/build-app.sh
 #
-# Output: build/Code Portal.app (revealed in Finder)
+# Output: build/<build-number>/Code Portal.app (revealed in Finder)
 # Version: reads CFBundleVersion from Info.plist, increments it, writes back.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 INFO_PLIST="$PROJECT_DIR/Sources/Resources/Info.plist"
 BUILD_DIR="$PROJECT_DIR/build"
-APP_DIR="$BUILD_DIR/Code Portal.app"
 
 cd "$PROJECT_DIR"
 
@@ -21,6 +20,9 @@ NEW_BUILD=$((CURRENT_BUILD + 1))
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $NEW_BUILD" "$INFO_PLIST"
 
 VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$INFO_PLIST")
+VERSIONED_DIR="$BUILD_DIR/$NEW_BUILD"
+APP_DIR="$VERSIONED_DIR/Code Portal.app"
+
 echo "=== Building Code Portal v${VERSION} (build ${NEW_BUILD}) ==="
 
 # --- Build release binary ---
@@ -33,7 +35,7 @@ if [ ! -f ".build/release/CodePortal" ]; then
 fi
 
 # --- Create .app bundle ---
-rm -rf "$APP_DIR"
+rm -rf "$VERSIONED_DIR"
 mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
 
 # Copy binary
