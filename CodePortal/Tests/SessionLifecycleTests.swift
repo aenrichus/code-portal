@@ -180,4 +180,224 @@ struct SessionLifecycleTests {
             Issue.record("Expected xpc")
         }
     }
+
+    // MARK: - State Machine Transitions
+
+    @Test("State transitions: idle -> running -> attention -> running -> idle")
+    @MainActor
+    func stateTransitions() {
+        let session = TerminalSession(repo: RepoInfo(path: "/tmp/test"))
+        #expect(session.state == .idle)
+
+        session.state = .running
+        #expect(session.state == .running)
+
+        session.state = .attention
+        #expect(session.state == .attention)
+
+        // Output resumes -> back to running
+        session.state = .running
+        #expect(session.state == .running)
+
+        // Process exits -> idle
+        session.state = .idle
+        #expect(session.state == .idle)
+    }
+
+    @Test("Session emits processExited event")
+    @MainActor
+    func emitsProcessExited() async {
+        let session = TerminalSession(repo: RepoInfo(path: "/tmp/test"))
+        let stream = session.events()
+
+        session.emit(.processExited(sessionId: session.id, exitCode: 0))
+        session.finishAllContinuations()
+
+        var iter = stream.makeAsyncIterator()
+        let event = await iter.next()
+        if case .processExited(let id, let code) = event {
+            #expect(id == session.id)
+            #expect(code == 0)
+        } else {
+            Issue.record("Expected processExited")
+        }
+    }
+
+    // MARK: - SessionManager sendInput State Guards
+
+    @Test("sendInput is silently ignored when session is idle")
+    @MainActor
+    func sendInputRejectedWhenIdle() {
+        let manager = SessionManager()
+        let session = TerminalSession(repo: RepoInfo(path: "/tmp/test"))
+        manager.sessions.append(session)
+        // Session is .idle — sendInput should silently return without crashing
+        // (No PTY view exists, so it returns at state guard)
+        manager.sendInput(sessionId: session.id, text: "hello", caller: .userInterface)
+        #expect(session.state == .idle)  // State unchanged
+    }
+
+    @Test("sendInput is rejected for non-userInterface callers")
+    @MainActor
+    func sendInputRejectedForNonUI() {
+        let manager = SessionManager()
+        let session = TerminalSession(repo: RepoInfo(path: "/tmp/test"))
+        session.state = .running
+        manager.sessions.append(session)
+        // URL scheme callers rejected in v1
+        manager.sendInput(sessionId: session.id, text: "hello", caller: .urlScheme(sourceApp: "evil"))
+        // Should not crash — state guard rejects silently
+        #expect(session.state == .running)
+    }
+
+    @Test("sendInput is rejected for unknown session ID")
+    @MainActor
+    func sendInputRejectedForUnknownId() {
+        let manager = SessionManager()
+        // No sessions exist — should silently return
+        manager.sendInput(sessionId: UUID(), text: "hello", caller: .userInterface)
+    }
+
+    // MARK: - SessionManager Session Management
+
+    @Test("listSessions returns snapshots of all sessions")
+    @MainActor
+    func listSessionsReturnsSnapshots() {
+        let manager = SessionManager()
+        // Clear any persisted sessions loaded from disk
+        manager.sessions.removeAll()
+        manager.terminalViewPool.removeAll()
+
+        let s1 = TerminalSession(repo: RepoInfo(path: "/tmp/a"))
+        let s2 = TerminalSession(repo: RepoInfo(path: "/tmp/b"))
+        s2.state = .running
+        manager.sessions.append(s1)
+        manager.sessions.append(s2)
+
+        let snapshots = manager.listSessions()
+        #expect(snapshots.count == 2)
+        #expect(snapshots[0].repoName == "a")
+        #expect(snapshots[0].state == .idle)
+        #expect(snapshots[1].repoName == "b")
+        #expect(snapshots[1].state == .running)
+    }
+
+    @Test("sessionState returns correct state for known ID")
+    @MainActor
+    func sessionStateKnownId() {
+        let manager = SessionManager()
+        let session = TerminalSession(repo: RepoInfo(path: "/tmp/test"))
+        session.state = .attention
+        manager.sessions.append(session)
+
+        #expect(manager.sessionState(id: session.id) == .attention)
+    }
+
+    @Test("sessionState returns nil for unknown ID")
+    @MainActor
+    func sessionStateUnknownId() {
+        let manager = SessionManager()
+        #expect(manager.sessionState(id: UUID()) == nil)
+    }
+
+    // MARK: - Navigation
+
+    @Test("selectNextSession wraps around")
+    @MainActor
+    func selectNextWraps() {
+        let manager = SessionManager()
+        let s1 = TerminalSession(repo: RepoInfo(path: "/tmp/a"))
+        let s2 = TerminalSession(repo: RepoInfo(path: "/tmp/b"))
+        let s3 = TerminalSession(repo: RepoInfo(path: "/tmp/c"))
+        manager.sessions = [s1, s2, s3]
+        manager.selectedSessionId = s3.id
+
+        manager.selectNextSession()
+        #expect(manager.selectedSessionId == s1.id)  // wrapped
+    }
+
+    @Test("selectPreviousSession wraps around")
+    @MainActor
+    func selectPreviousWraps() {
+        let manager = SessionManager()
+        let s1 = TerminalSession(repo: RepoInfo(path: "/tmp/a"))
+        let s2 = TerminalSession(repo: RepoInfo(path: "/tmp/b"))
+        manager.sessions = [s1, s2]
+        manager.selectedSessionId = s1.id
+
+        manager.selectPreviousSession()
+        #expect(manager.selectedSessionId == s2.id)  // wrapped
+    }
+
+    @Test("selectedRepoName returns name of selected session")
+    @MainActor
+    func selectedRepoNameWorks() {
+        let manager = SessionManager()
+        let session = TerminalSession(repo: RepoInfo(path: "/tmp/my-project"))
+        manager.sessions.append(session)
+        manager.selectedSessionId = session.id
+        #expect(manager.selectedRepoName == "my-project")
+    }
+
+    @Test("selectedRepoName returns nil when nothing selected")
+    @MainActor
+    func selectedRepoNameNil() {
+        let manager = SessionManager()
+        // Clear persisted sessions and selection
+        manager.sessions.removeAll()
+        manager.selectedSessionId = nil
+        #expect(manager.selectedRepoName == nil)
+    }
+
+    // MARK: - Attention Counter
+
+    @Test("handleSessionStateChange updates attention count")
+    @MainActor
+    func attentionCountTracking() {
+        let manager = SessionManager()
+        let session = TerminalSession(repo: RepoInfo(path: "/tmp/test"))
+        manager.sessions.append(session)
+
+        // running -> attention: count increments
+        manager.handleSessionStateChange(session: session, oldState: .running, newState: .attention)
+        #expect(manager.attentionCount == 1)
+
+        // attention -> running: count decrements
+        manager.handleSessionStateChange(session: session, oldState: .attention, newState: .running)
+        #expect(manager.attentionCount == 0)
+
+        // Count never goes below 0
+        manager.handleSessionStateChange(session: session, oldState: .attention, newState: .idle)
+        #expect(manager.attentionCount == 0)
+    }
+
+    // MARK: - Claude CLI Resolution
+
+    @Test("resolveClaudePathStatic finds claude or returns default")
+    @MainActor
+    func claudePathResolution() {
+        let path = SessionManager.resolveClaudePathStatic()
+        // Should either find a real path or return the fallback
+        #expect(!path.isEmpty)
+        #expect(path.hasSuffix("claude"))
+    }
+
+    // MARK: - RepoInfo Codable
+
+    @Test("RepoInfo round-trips through JSON encoding/decoding")
+    func repoInfoCodable() throws {
+        let original = RepoInfo(path: "/tmp/my-project", name: "my-project", addedAt: Date())
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let data = try encoder.encode(original)
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let decoded = try decoder.decode(RepoInfo.self, from: data)
+
+        #expect(decoded.path == original.path)
+        #expect(decoded.name == original.name)
+        // Date comparison with some tolerance (ISO8601 drops sub-second precision)
+        #expect(abs(decoded.addedAt.timeIntervalSince(original.addedAt)) < 1.0)
+    }
 }

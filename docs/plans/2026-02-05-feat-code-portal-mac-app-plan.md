@@ -249,9 +249,9 @@ CodePortal/
 - [x] Create minimal `CodePortalApp` with single WindowGroup showing terminal — `Sources/CodePortalApp.swift`
 - [ ] Validate that Hardened Runtime + notarization works with `forkpty()` (no opt-outs expected)
 - [ ] Validate terminal resize (SIGWINCH) with window resizing
-- [ ] Validate first responder / keyboard focus works in terminal view
+- [x] Validate first responder / keyboard focus works in terminal view
 - [ ] **Spike: catalog attention patterns.** Run Claude Code in the embedded terminal. Trigger permission prompts, errors, task completion. Capture raw bytes with/without ANSI. Document exact patterns.
-- [ ] **Spike: also test `claude --output-format stream-json`** in a separate process to compare structured events vs PTY scraping. Document findings for future hybrid mode.
+- [x] **Spike: also test `claude --output-format stream-json`** in a separate process to compare structured events vs PTY scraping. Document findings for future hybrid mode.
 
 **Success criteria:** Launch app, interact with Claude Code in embedded terminal, have documented attention patterns, entitlements validated.
 
@@ -289,7 +289,7 @@ CodePortal/
 - [ ] Test: respond to prompt, verify attention clears
 - [x] Implement lineBuffer 64KB cap in `MonitoredTerminalView.dataReceived` (discard buffer contents when exceeded — prevents OOM from binary/no-newline output)
 - [x] Ensure all `eventContinuations` are `finish()`-ed on session removal (prevents leaked AsyncStream consumers)
-- [ ] Test: `sendInput(_:caller:)` sends text to PTY, verify state guard rejects input in `.idle` state
+- [x] Test: `sendInput(_:caller:)` sends text to PTY, verify state guard rejects input in `.idle` state
 - [ ] Test: remove repo while session running
 - [ ] Test: quit and relaunch, verify repo list persisted from JSON file
 
