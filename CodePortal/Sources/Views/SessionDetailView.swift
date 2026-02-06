@@ -2,7 +2,7 @@ import SwiftUI
 import SwiftTerm
 
 /// Detail view showing the terminal for the selected session.
-/// Uses a view pool pattern: NSViewRepresentable wrapper swaps child views
+/// Uses a view pool pattern: NSViewControllerRepresentable wrapper swaps child views
 /// from SessionManager.terminalViewPool instead of using .id() which destroys/recreates.
 struct SessionDetailView: View {
     let session: TerminalSession
@@ -10,8 +10,8 @@ struct SessionDetailView: View {
 
     var body: some View {
         ZStack {
-            // Terminal view from pool
-            TerminalViewWrapper(
+            // Terminal view from pool via NSViewControllerRepresentable
+            TerminalViewControllerWrapper(
                 sessionId: session.id,
                 sessionManager: sessionManager
             )
@@ -74,87 +74,82 @@ struct SessionDetailView: View {
     }
 }
 
-// MARK: - Terminal View Wrapper (NSViewRepresentable, inline)
+// MARK: - Terminal View Controller Wrapper (NSViewControllerRepresentable)
 
-/// Bridges SwiftTerm's AppKit NSView into SwiftUI.
-/// Uses view pool pattern: returns container in makeNSView, swaps child in updateNSView.
-/// Tab switch drops to <5ms (view reparenting only, no view destruction/recreation).
+/// Bridges SwiftTerm's AppKit NSView into SwiftUI via NSViewControllerRepresentable.
 ///
-/// CRITICAL: Never restart processes or recreate views in updateNSView.
-/// Use for child view swapping only.
-private struct TerminalViewWrapper: NSViewRepresentable {
+/// Using NSViewControllerRepresentable instead of NSViewRepresentable is critical:
+/// NSViewRepresentable embeds the NSView inside SwiftUI's own hosting view, which
+/// intercepts keyboard events. NSViewControllerRepresentable gives the terminal its
+/// own NSViewController with a proper AppKit responder chain, so keyDown events
+/// flow directly to the TerminalView.
+///
+/// Uses view pool pattern: the coordinator tracks the current session, and
+/// updateNSViewController swaps the terminal child view from the pool.
+private struct TerminalViewControllerWrapper: NSViewControllerRepresentable {
     let sessionId: UUID
     let sessionManager: SessionManager
 
-    func makeNSView(context: Context) -> TerminalContainerView {
-        let container = TerminalContainerView()
-        container.autoresizesSubviews = true
-        updateTerminalChild(in: container)
-        return container
+    func makeNSViewController(context: Context) -> TerminalHostViewController {
+        let vc = TerminalHostViewController()
+        vc.currentSessionId = sessionId
+        installTerminalView(in: vc)
+        return vc
     }
 
-    func updateNSView(_ container: TerminalContainerView, context: Context) {
-        updateTerminalChild(in: container)
+    func updateNSViewController(_ vc: TerminalHostViewController, context: Context) {
+        if vc.currentSessionId != sessionId {
+            vc.currentSessionId = sessionId
+        }
+        installTerminalView(in: vc)
     }
 
-    private func updateTerminalChild(in container: TerminalContainerView) {
+    private func installTerminalView(in vc: TerminalHostViewController) {
         guard let terminalView = sessionManager.terminalViewPool[sessionId] else { return }
+        let container = vc.view
 
         // Only reparent if not already a child of this container
         if terminalView.superview !== container {
-            // Remove from previous parent (if any)
-            terminalView.removeFromSuperview()
+            // Remove all existing subviews (previous terminal)
+            for subview in container.subviews {
+                subview.removeFromSuperview()
+            }
 
-            // Add to this container
+            // Add terminal view filling the container
             terminalView.frame = container.bounds
             terminalView.autoresizingMask = [.width, .height]
             container.addSubview(terminalView)
         }
 
-        // Store reference for click-to-focus
-        container.terminalView = terminalView
-
-        // Defer focus request until after SwiftUI's layout pass completes.
-        // Calling makeFirstResponder during updateNSView is overridden by SwiftUI.
+        // Ensure the terminal view has keyboard focus.
+        // Defer to next run loop iteration so the view is fully in the window.
         DispatchQueue.main.async {
-            guard let window = container.window else { return }
+            guard let window = terminalView.window else { return }
             if window.firstResponder !== terminalView {
                 window.makeFirstResponder(terminalView)
             }
         }
     }
 
-    static func dismantleNSView(_ nsView: TerminalContainerView, coordinator: ()) {
-        nsView.terminalView = nil
-        for subview in nsView.subviews {
+    static func dismantleNSViewController(_ vc: TerminalHostViewController, coordinator: ()) {
+        // Remove terminal from container but don't destroy it (lives in pool)
+        for subview in vc.view.subviews {
             subview.removeFromSuperview()
         }
     }
 }
 
-// MARK: - Terminal Container View
+// MARK: - Terminal Host View Controller
 
-/// Container NSView that forwards mouse clicks to make the terminal first responder.
-/// Necessary because SwiftUI's focus system fights with AppKit's firstResponder.
-final class TerminalContainerView: NSView {
-    weak var terminalView: NSView?
+/// Minimal NSViewController that hosts a terminal view.
+/// Provides proper AppKit responder chain for keyboard input.
+final class TerminalHostViewController: NSViewController {
+    var currentSessionId: UUID?
 
-    override func mouseDown(with event: NSEvent) {
-        super.mouseDown(with: event)
-        if let tv = terminalView, let window = self.window, window.firstResponder !== tv {
-            window.makeFirstResponder(tv)
-        }
-    }
-
-    override var acceptsFirstResponder: Bool { true }
-
-    override func becomeFirstResponder() -> Bool {
-        // When the container gets focus, immediately forward to the terminal view
-        if let tv = terminalView, let window = self.window {
-            DispatchQueue.main.async {
-                window.makeFirstResponder(tv)
-            }
-        }
-        return true
+    override func loadView() {
+        // Create a plain NSView as the root — the terminal view will be added as a subview
+        let root = NSView()
+        root.autoresizesSubviews = true
+        self.view = root
     }
 }
