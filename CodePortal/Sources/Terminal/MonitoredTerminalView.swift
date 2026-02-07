@@ -88,8 +88,10 @@ final class MonitoredTerminalView: LocalProcessTerminalView {
         }
 
         // Check for explicit attention patterns (questions, permission prompts)
+        // AND idle prompt (Claude finished, waiting for next command)
         let matchedPattern = AttentionDetector.scanBuffer(visibleLines)
-        let needsAttention = matchedPattern != nil
+        let isIdle = AttentionDetector.isIdlePrompt(visibleLines)
+        let needsAttention = matchedPattern != nil || isIdle
 
         if needsAttention && !lastScanFoundAttention {
             // Transition: running → attention
@@ -97,7 +99,8 @@ final class MonitoredTerminalView: LocalProcessTerminalView {
             if session.state == .running {
                 let oldState = session.state
                 session.state = .attention
-                session.emit(.attentionDetected(sessionId: session.id, pattern: matchedPattern ?? ""))
+                let pattern = matchedPattern ?? (isIdle ? "idle prompt" : "")
+                session.emit(.attentionDetected(sessionId: session.id, pattern: pattern))
                 session.emit(.stateChanged(sessionId: session.id, newState: .attention))
                 sessionManager?.handleSessionStateChange(session: session, oldState: oldState, newState: .attention)
             }

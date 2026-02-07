@@ -177,6 +177,93 @@ struct AttentionDetectorTests {
         #expect(result != nil)
     }
 
+    // MARK: - Idle Prompt Detection
+
+    @Test("isIdlePrompt detects prompt with placeholder text")
+    func idlePromptWithPlaceholder() {
+        let lines = [
+            "⏺ Done! The project has been built.",
+            "",
+            "────────────────────────────────────────",
+            "> Try \"write a test for <filepath>\"",
+            "────────────────────────────────────────",
+            "  ? for shortcuts                                                                      Thinking on (tab to toggle)",
+            "",
+        ]
+        #expect(AttentionDetector.isIdlePrompt(lines))
+    }
+
+    @Test("isIdlePrompt detects bare empty prompt")
+    func idlePromptBare() {
+        // Real capture: Claude responded, empty prompt waiting
+        let lines = [
+            "⏺ I'd be happy to help!",
+            "",
+            "  What's on your mind?",
+            "",
+            "────────────────────────────────────────",
+            "> ",
+            "────────────────────────────────────────",
+            "  ? for shortcuts                                                                      Thinking on (tab to toggle)",
+            "",
+            "",
+        ]
+        #expect(AttentionDetector.isIdlePrompt(lines))
+    }
+
+    @Test("isIdlePrompt returns false when ? for shortcuts is absent")
+    func notIdleWithoutShortcutsHint() {
+        let lines = [
+            "────────────────────────────────────────",
+            "> Try \"write a test\"",
+            "────────────────────────────────────────",
+            "",
+        ]
+        #expect(!AttentionDetector.isIdlePrompt(lines))
+    }
+
+    @Test("isIdlePrompt returns false when no prompt or rule present")
+    func notIdleWithoutPrompt() {
+        let lines = [
+            "⏺ Building the project...",
+            "  Compiling main.swift",
+            "  ? for shortcuts",
+            "",
+        ]
+        #expect(!AttentionDetector.isIdlePrompt(lines))
+    }
+
+    @Test("isIdlePrompt returns false during multi-choice (? for shortcuts absent)")
+    func notIdleDuringMultiChoice() {
+        let lines = [
+            "Which option?",
+            "",
+            "❯ 1. [ ] Option A",
+            "  2. [ ] Option B",
+            "",
+            "Enter to select · Tab/Arrow keys to navigate · Esc to cancel",
+            "",
+        ]
+        #expect(!AttentionDetector.isIdlePrompt(lines))
+    }
+
+    @Test("isIdlePrompt works with real full-buffer capture")
+    func idlePromptFullBuffer() {
+        // Simulating a full 40-row buffer with the idle prompt at the bottom
+        var lines = Array(repeating: "", count: 30)
+        lines.append("⏺ Task complete.")
+        lines.append("")
+        lines.append("────────────────────────────────────────────────────────────")
+        lines.append("> Try \"create a util logging.py that...\"")
+        lines.append("────────────────────────────────────────────────────────────")
+        lines.append("  ? for shortcuts")
+        lines.append("")
+        lines.append("")
+        lines.append("")
+        lines.append("")
+        #expect(AttentionDetector.isIdlePrompt(lines))
+    }
+
     // MARK: - Legacy Line Buffer Processing
 
     @Test("Processes single complete line")

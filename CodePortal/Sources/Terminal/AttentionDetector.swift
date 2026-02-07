@@ -17,6 +17,12 @@ import Foundation
 ///   Allow Bash(ls -la)?
 ///   Yes  No  Always
 ///
+/// Idle input prompt (task completed, user's turn):
+///   ────────────────
+///   > Try "write a test for <filepath>"   (or bare "> ")
+///   ────────────────
+///   ? for shortcuts                       Thinking on (tab to toggle)
+///
 /// Working (NOT attention):
 ///   Thinking on (tab to toggle)
 ///   ⏺ Building the project...
@@ -76,6 +82,45 @@ enum AttentionDetector {
             }
         }
         return nil
+    }
+
+    // MARK: - Idle Prompt Detection
+
+    /// Check if the terminal shows the idle input prompt (Claude waiting for user command).
+    ///
+    /// Requires BOTH signals in the bottom portion of the visible buffer:
+    /// 1. `? for shortcuts` — the status hint shown only when the input prompt is active
+    /// 2. A `>` prompt line preceded by a `────` horizontal rule
+    ///
+    /// This two-signal requirement avoids false positives: `? for shortcuts` alone could
+    /// appear during other states, and `>` alone matches user input in the conversation.
+    /// Together they uniquely identify the idle input prompt.
+    ///
+    /// The debounced scan (500ms after last output) ensures this doesn't fire during
+    /// active streaming — the timer keeps resetting while Claude produces output.
+    static func isIdlePrompt(_ lines: [String]) -> Bool {
+        // Only search the bottom portion of the buffer (the prompt is always near the bottom)
+        let searchStart = max(0, lines.count - 15)
+
+        for i in searchStart..<lines.count {
+            let trimmed = lines[i].trimmingCharacters(in: .whitespaces)
+
+            if trimmed.hasPrefix("? for shortcuts") {
+                // Found the status hint — verify there's a > prompt with ──── rule above
+                let lookBack = max(searchStart, i - 4)
+                var foundRule = false
+                var foundPrompt = false
+                for j in lookBack..<i {
+                    let above = lines[j].trimmingCharacters(in: .whitespaces)
+                    if above.contains("────") { foundRule = true }
+                    if above.hasPrefix(">") { foundPrompt = true }
+                }
+                if foundRule && foundPrompt {
+                    return true
+                }
+            }
+        }
+        return false
     }
 
     // MARK: - Legacy line-buffer processing (kept for raw-byte fallback)
