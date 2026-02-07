@@ -13,8 +13,9 @@ import SwiftTerm
 /// 3. We read SwiftTerm's parsed visible buffer via `getTerminal().getLine(row:)`.
 /// 4. Scan the visible text for attention patterns using `AttentionDetector`.
 ///
-/// This handles TUI apps correctly because we read the already-rendered screen content,
-/// not the raw escape sequences used to draw it.
+/// Recovery strategy: When the session is in attention state and new data arrives
+/// via `dataReceived`, the user must have responded and Claude is working again.
+/// We immediately clear attention without waiting for the debounced scan.
 ///
 /// CRITICAL WARNINGS:
 /// - Always call `super.dataReceived(slice:)` or terminal display breaks.
@@ -54,6 +55,18 @@ final class MonitoredTerminalView: LocalProcessTerminalView {
     override func dataReceived(slice: ArraySlice<UInt8>) {
         // MUST call super for terminal rendering
         super.dataReceived(slice: slice)
+
+        // IMMEDIATE RECOVERY: If we're in attention state and new data arrives,
+        // the user has responded and Claude is working again. Clear attention now
+        // rather than waiting for the debounced scan (which may fire too late or
+        // catch a partially-redrawn screen that still contains the pattern).
+        if lastScanFoundAttention, let session = session, session.state == .attention {
+            lastScanFoundAttention = false
+            let oldState = session.state
+            session.state = .running
+            session.emit(.stateChanged(sessionId: session.id, newState: .running))
+            sessionManager?.handleSessionStateChange(session: session, oldState: oldState, newState: .running)
+        }
 
         // Reset debounce timer — scan will fire when output settles
         scanTimer?.invalidate()
@@ -99,7 +112,7 @@ final class MonitoredTerminalView: LocalProcessTerminalView {
                 sessionManager?.handleSessionStateChange(session: session, oldState: oldState, newState: .attention)
             }
         } else if !needsAttention && lastScanFoundAttention {
-            // Transition: attention → running (auto-recovery when Claude starts working again)
+            // Transition: attention → running (backup recovery via debounced scan)
             lastScanFoundAttention = false
             if session.state == .attention {
                 let oldState = session.state
