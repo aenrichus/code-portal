@@ -4,6 +4,8 @@ A native macOS desktop app for managing multiple [Claude Code](https://docs.anth
 
 Code Portal gives you a single window with a sidebar listing your repositories. Each repo runs its own Claude Code instance in a real terminal (powered by [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm)). Color-coded status indicators show you at a glance which sessions need your attention and which are still working.
 
+Now you're thinking with portals.
+
 ## Download
 
 Grab the latest build from [build/12/Code Portal.app](build/12/).
