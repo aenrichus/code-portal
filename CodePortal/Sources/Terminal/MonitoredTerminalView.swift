@@ -19,6 +19,8 @@ import SwiftTerm
 /// CRITICAL WARNINGS:
 /// - Always call `super.dataReceived(slice:)` or terminal display breaks.
 /// - `session` is a weak reference to avoid retain cycles (SessionManager owns both).
+/// - State changes are synchronous (no Task) to avoid race conditions between
+///   `lastScanFoundAttention` and `session.state`.
 final class MonitoredTerminalView: LocalProcessTerminalView {
 
     /// Weak back-reference to the session. SessionManager.terminalViewPool owns the view strongly.
@@ -63,7 +65,14 @@ final class MonitoredTerminalView: LocalProcessTerminalView {
     }
 
     /// Read the visible terminal buffer and check for attention patterns.
+    ///
+    /// IMPORTANT: All state changes are synchronous. Using `Task { @MainActor in }` here
+    /// would defer execution to a later runloop tick, creating a race condition where
+    /// `lastScanFoundAttention` resets before `session.state` updates. This causes the
+    /// recovery branch to miss its guard check, leaving the session stuck in `.attention`.
     private func scanTerminalBuffer() {
+        guard let session = session else { return }
+
         let terminal = getTerminal()
         let rowCount = terminal.rows
 
@@ -82,32 +91,21 @@ final class MonitoredTerminalView: LocalProcessTerminalView {
         if needsAttention && !lastScanFoundAttention {
             // Transition: running → attention
             lastScanFoundAttention = true
-            let pattern = matchedPattern ?? ""
-            let capturedSession = self.session
-            let capturedManager = self.sessionManager
-            Task { @MainActor in
-                guard let session = capturedSession else { return }
-                if session.state == .running {
-                    let oldState = session.state
-                    session.state = .attention
-                    session.emit(.attentionDetected(sessionId: session.id, pattern: pattern))
-                    session.emit(.stateChanged(sessionId: session.id, newState: .attention))
-                    capturedManager?.handleSessionStateChange(session: session, oldState: oldState, newState: .attention)
-                }
+            if session.state == .running {
+                let oldState = session.state
+                session.state = .attention
+                session.emit(.attentionDetected(sessionId: session.id, pattern: matchedPattern ?? ""))
+                session.emit(.stateChanged(sessionId: session.id, newState: .attention))
+                sessionManager?.handleSessionStateChange(session: session, oldState: oldState, newState: .attention)
             }
         } else if !needsAttention && lastScanFoundAttention {
             // Transition: attention → running (auto-recovery when Claude starts working again)
             lastScanFoundAttention = false
-            let capturedSession = self.session
-            let capturedManager = self.sessionManager
-            Task { @MainActor in
-                guard let session = capturedSession else { return }
-                if session.state == .attention {
-                    let oldState = session.state
-                    session.state = .running
-                    session.emit(.stateChanged(sessionId: session.id, newState: .running))
-                    capturedManager?.handleSessionStateChange(session: session, oldState: oldState, newState: .running)
-                }
+            if session.state == .attention {
+                let oldState = session.state
+                session.state = .running
+                session.emit(.stateChanged(sessionId: session.id, newState: .running))
+                sessionManager?.handleSessionStateChange(session: session, oldState: oldState, newState: .running)
             }
         }
     }
@@ -118,16 +116,12 @@ final class MonitoredTerminalView: LocalProcessTerminalView {
         scanTimer = nil
         lastScanFoundAttention = false
 
-        let capturedSession = self.session
-        let capturedManager = self.sessionManager
-        Task { @MainActor in
-            guard let session = capturedSession else { return }
-            let oldState = session.state
-            session.state = .idle
-            session.emit(.processExited(sessionId: session.id, exitCode: exitCode))
-            session.emit(.stateChanged(sessionId: session.id, newState: .idle))
-            capturedManager?.handleSessionStateChange(session: session, oldState: oldState, newState: .idle)
-        }
+        guard let session = session else { return }
+        let oldState = session.state
+        session.state = .idle
+        session.emit(.processExited(sessionId: session.id, exitCode: exitCode))
+        session.emit(.stateChanged(sessionId: session.id, newState: .idle))
+        sessionManager?.handleSessionStateChange(session: session, oldState: oldState, newState: .idle)
     }
 
     /// Reset state when starting a new process.
