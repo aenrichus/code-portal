@@ -7,3 +7,10 @@ DerivedData/
 .swiftpm/
 *.xcworkspace
 Package.resolved
+
+# Claude Code
+.claude/
+
+# Internal docs and notes
+docs/
+ideas/
