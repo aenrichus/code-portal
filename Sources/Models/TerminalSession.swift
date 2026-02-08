@@ -2,22 +2,25 @@ import Foundation
 
 // MARK: - RepoInfo
 
-/// Inline repo descriptor — no separate type needed for 2 fields.
+/// Inline repo descriptor — no separate type needed for a few fields.
 struct RepoInfo: Codable, Sendable {
     let path: String
     let name: String
     let addedAt: Date
+    var args: String?  // Per-repo CLI args (nil = use global only)
 
     init(path: String) {
         self.path = path
         self.name = URL(fileURLWithPath: path).lastPathComponent
         self.addedAt = Date()
+        self.args = nil
     }
 
-    init(path: String, name: String, addedAt: Date) {
+    init(path: String, name: String, addedAt: Date, args: String? = nil) {
         self.path = path
         self.name = name
         self.addedAt = addedAt
+        self.args = args
     }
 }
 
@@ -29,7 +32,7 @@ struct RepoInfo: Codable, Sendable {
 @MainActor
 final class TerminalSession: Identifiable {
     let id: UUID
-    let repo: RepoInfo
+    var repo: RepoInfo
     var state: SessionState = .idle
 
     /// Multi-consumer event continuations. Factory method `events()` creates new ones.

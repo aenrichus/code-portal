@@ -53,6 +53,10 @@ struct CodePortalApp: App {
                 .disabled(sessionManager.sessions.count < 2)
             }
         }
+
+        Settings {
+            SettingsView()
+        }
     }
 
     private func addRepoViaOpenPanel() {

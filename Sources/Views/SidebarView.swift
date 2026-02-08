@@ -3,6 +3,7 @@ import SwiftUI
 /// Sidebar listing all projects with status indicators.
 struct SidebarView: View {
     @Bindable var sessionManager: SessionManager
+    @State private var editingSession: TerminalSession?
 
     var body: some View {
         List(selection: $sessionManager.selectedSessionId) {
@@ -12,6 +13,9 @@ struct SidebarView: View {
             }
         }
         .listStyle(.sidebar)
+        .sheet(item: $editingSession) { session in
+            RepoSettingsSheet(session: session, sessionManager: sessionManager)
+        }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button(action: addRepo) {
@@ -56,6 +60,12 @@ struct SidebarView: View {
         }
         .padding(.vertical, 2)
         .contextMenu {
+            Button("Edit Settings...") {
+                editingSession = session
+            }
+
+            Divider()
+
             Button("Restart Session") {
                 sessionManager.restartSession(id: session.id, caller: .userInterface)
             }
@@ -104,6 +114,73 @@ struct SidebarView: View {
                 alert.alertStyle = .warning
                 alert.runModal()
             }
+        }
+    }
+}
+
+// MARK: - Repo Settings Sheet
+
+/// Per-repo CLI args editor, presented as a sheet from the sidebar context menu.
+private struct RepoSettingsSheet: View {
+    let session: TerminalSession
+    @Bindable var sessionManager: SessionManager
+    @State private var repoArgs: String
+    @State private var showRestartConfirm: Bool = false
+    @Environment(\.dismiss) private var dismiss
+
+    init(session: TerminalSession, sessionManager: SessionManager) {
+        self.session = session
+        self.sessionManager = sessionManager
+        _repoArgs = State(initialValue: session.repo.args ?? "")
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Settings for \(session.repo.name)")
+                .font(.headline)
+
+            TextField("CLI flags for this repo", text: $repoArgs)
+                .textFieldStyle(.roundedBorder)
+            Text("e.g., --model opus --verbose")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text("Appended after global flags. Leave empty to use global only.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            HStack {
+                Button("Cancel") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                Spacer()
+                Button("Save") {
+                    save()
+                }
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding()
+        .frame(width: 400)
+        .alert("Restart Session?", isPresented: $showRestartConfirm) {
+            Button("Restart") {
+                sessionManager.restartSession(id: session.id, caller: .userInterface)
+                dismiss()
+            }
+            Button("Later") {
+                dismiss()
+            }
+        } message: {
+            Text("Settings saved. Restart the session for the new flags to take effect?")
+        }
+    }
+
+    private func save() {
+        sessionManager.updateRepoArgs(id: session.id, args: repoArgs)
+
+        // Only offer restart if the session is already running (not idle/grey dot)
+        if session.state != .idle {
+            showRestartConfirm = true
+        } else {
+            dismiss()
         }
     }
 }

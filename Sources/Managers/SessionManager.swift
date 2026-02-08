@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 import SwiftTerm
 import UserNotifications
 
@@ -27,6 +28,10 @@ final class SessionManager: SessionControlling {
 
     /// Whether the app is currently focused (suppress notifications when true + selected session).
     var isAppFocused: Bool = false
+
+    /// Global CLI args applied to all sessions. Stored in UserDefaults.
+    @ObservationIgnored
+    @AppStorage("globalClaudeArgs") var globalClaudeArgs: String = ""
 
     // MARK: - Multi-consumer event stream
 
@@ -133,7 +138,7 @@ final class SessionManager: SessionControlling {
         session.emit(.stateChanged(sessionId: id, newState: .running))
 
         // Start new process
-        startClaudeProcess(in: view, workingDirectory: session.repo.path)
+        startClaudeProcess(in: view, session: session)
     }
 
     func sendInput(sessionId: UUID, text: String, caller: CallerContext) {
@@ -192,21 +197,30 @@ final class SessionManager: SessionControlling {
         session.state = .running
         session.emit(.stateChanged(sessionId: id, newState: .running))
 
-        startClaudeProcess(in: view, workingDirectory: session.repo.path)
+        startClaudeProcess(in: view, session: session)
     }
 
-    private func startClaudeProcess(in view: MonitoredTerminalView, workingDirectory: String) {
+    private func startClaudeProcess(in view: MonitoredTerminalView, session: TerminalSession) {
         let claudePath = resolveClaudePath()
 
         // Curated environment: allowlist only. Strip all DYLD_* variables.
         let env = buildCuratedEnvironment()
 
+        // Merge global + per-repo args (per-repo appended after global)
+        let globalParsed = globalClaudeArgs
+            .split(separator: " ", omittingEmptySubsequences: true)
+            .map(String.init)
+        let repoParsed = (session.repo.args ?? "")
+            .split(separator: " ", omittingEmptySubsequences: true)
+            .map(String.init)
+        let args = globalParsed + repoParsed
+
         view.startProcess(
             executable: claudePath,
-            args: [],
+            args: args,
             environment: env,
             execName: nil,
-            currentDirectory: workingDirectory
+            currentDirectory: session.repo.path
         )
     }
 
@@ -428,6 +442,19 @@ final class SessionManager: SessionControlling {
         }
     }
 
+    // MARK: - Repo Settings
+
+    /// Update per-repo CLI args. Trims whitespace; stores nil if empty.
+    func updateRepoArgs(id: UUID, args: String) {
+        guard let session = sessions.first(where: { $0.id == id }) else { return }
+        let trimmed = args.trimmingCharacters(in: .whitespaces)
+        // Replace the entire struct to ensure @Observable picks up the mutation.
+        var updated = session.repo
+        updated.args = trimmed.isEmpty ? nil : trimmed
+        session.repo = updated
+        saveRepos()
+    }
+
     // MARK: - Persistence
 
     private func loadPersistedRepos() {
@@ -445,7 +472,7 @@ final class SessionManager: SessionControlling {
                 guard !resolved.contains("..") else { continue }
                 guard FileManager.default.fileExists(atPath: resolved) else { continue }
 
-                let session = TerminalSession(repo: RepoInfo(path: resolved, name: repo.name, addedAt: repo.addedAt))
+                let session = TerminalSession(repo: RepoInfo(path: resolved, name: repo.name, addedAt: repo.addedAt, args: repo.args))
                 sessions.append(session)
                 createTerminalView(for: session)
             }
