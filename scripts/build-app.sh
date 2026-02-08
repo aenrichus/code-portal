@@ -47,6 +47,14 @@ cp "$INFO_PLIST" "$APP_DIR/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Add :CFBundlePackageType string APPL" "$APP_DIR/Contents/Info.plist" 2>/dev/null || true
 /usr/libexec/PlistBuddy -c "Add :NSHighResolutionCapable bool true" "$APP_DIR/Contents/Info.plist" 2>/dev/null || true
 
+# Copy app icon
+ICON_FILE="$PROJECT_DIR/Sources/Resources/AppIcon.icns"
+if [ -f "$ICON_FILE" ]; then
+    cp "$ICON_FILE" "$APP_DIR/Contents/Resources/AppIcon.icns"
+else
+    echo "WARNING: AppIcon.icns not found. Run scripts/generate-icon.sh to create it."
+fi
+
 # --- Done ---
 BINARY_SIZE=$(du -h "$APP_DIR/Contents/MacOS/CodePortal" | cut -f1)
 echo ""

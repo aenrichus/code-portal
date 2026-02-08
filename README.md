@@ -8,7 +8,7 @@ Now you're thinking with portals.
 
 ## Download
 
-Grab the latest build from [build/15/Code Portal.app](build/15/).
+Grab the latest build from [build/18/Code Portal.app](build/18/).
 
 To build from source:
 

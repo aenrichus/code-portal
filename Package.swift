@@ -16,7 +16,8 @@ let package = Package(
             path: "Sources",
             exclude: [
                 "Resources/Info.plist",
-                "Resources/CodePortal.entitlements"
+                "Resources/CodePortal.entitlements",
+                "Resources/AppIcon.icns"
             ]
         ),
         .testTarget(
