@@ -8,52 +8,33 @@ Now you're thinking with portals.
 
 ## Download
 
-Grab the latest DMG from [build/20/Code Portal.dmg](build/20/).
+**[Download Code Portal.dmg](https://github.com/aenrichus/code-portal/raw/main/build/20/Code%20Portal.dmg)** (macOS 14.0+)
 
-To build from source:
+Open the DMG and drag Code Portal to your Applications folder. You'll also need [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed and available on your PATH.
+
+To build from source (requires Swift 6.0+):
 
 ```
 ./scripts/build-app.sh
 ```
 
-The build script produces both a `.app` bundle and a styled `.dmg` installer in `build/<number>/`.
+## Release Notes
 
-## Features
+### v1.0 (Build 20)
 
-- **Multi-repo sidebar** — Add repositories and switch between Claude Code sessions instantly. Sessions persist across app restarts.
-- **Attention detection** — Sidebar indicators turn orange when Claude asks a question, requests permission, or finishes a task and is waiting for your next command. They turn green when Claude is actively working.
-- **Real terminal** — Full PTY-backed terminal with keyboard input, ANSI rendering, scrollback, and mouse support. Not a stripped-down text view.
+Initial public release.
+
+- **Multi-repo session management** — Run multiple Claude Code instances side by side. Add repositories to the sidebar and switch between sessions instantly.
+- **Attention detection** — Color-coded sidebar indicators show session state at a glance. Orange means Claude is asking a question, requesting permission, or waiting for input. Green means Claude is actively working. Gray means the session hasn't started yet.
+- **Real terminal emulation** — Full PTY-backed terminal powered by SwiftTerm with keyboard input, ANSI color rendering, scrollback, and mouse support.
 - **macOS notifications** — Get notified when a background session needs attention so you can keep working in another app.
 - **Session persistence** — Your repo list and working directories are saved automatically and restored on launch.
-- **Configurable CLI flags** — Set global or per-project flags passed to Claude Code on launch. Useful for `--model`, `--verbose`, `--permission-mode`, and other CLI options.
-
-## CLI Flags
-
-You can pass custom flags to the Claude Code CLI on a global or per-project basis.
-
-**Global flags** apply to all projects. Open Settings (Cmd+,) and enter flags in the text field. Click Save to persist.
-
-**Per-project flags** are appended after global flags and override them when there's a conflict. Right-click a project in the sidebar and choose "Edit Settings..." to configure. If the project has an active session, you'll be asked whether to restart it with the new flags.
-
-Flags take effect on the next session start or restart. Examples:
-
-```
---model opus
---verbose
---permission-mode bypassPermissions
---model sonnet --verbose
-```
+- **Configurable CLI flags** — Set global flags (Cmd+,) or per-project flags (right-click > Edit Settings) passed to Claude Code on launch. Useful for `--model`, `--verbose`, `--permission-mode`, and other CLI options. Per-project flags are appended after global flags.
+- **DMG installer** — Styled drag-to-install DMG with every build.
 
 ## How It Works
 
 Claude Code is an Ink (React for CLI) TUI that renders via cursor repositioning rather than newline-delimited output. Code Portal reads SwiftTerm's parsed visible buffer on a debounced timer (500ms after the last output chunk) and scans for known attention patterns: permission prompts, multi-choice questions, and the idle input prompt.
-
-## Requirements
-
-- macOS 14.0+
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed and available on `PATH`
-
-Building from source also requires Swift 6.0+.
 
 ## Project Structure
 
