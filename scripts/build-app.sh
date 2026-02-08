@@ -56,6 +56,9 @@ else
     echo "WARNING: AppIcon.icns not found. Run scripts/generate-icon.sh to create it."
 fi
 
+# Copy third-party license notices (required by MIT license)
+cp "$PROJECT_DIR/THIRD_PARTY_LICENSES" "$APP_DIR/Contents/Resources/THIRD_PARTY_LICENSES"
+
 # --- Create DMG installer ---
 echo "Creating DMG installer..."
 
