@@ -6,6 +6,8 @@ Code Portal gives you a single window with a sidebar listing your repositories. 
 
 Now you're thinking with portals.
 
+![Code Portal screenshot](screenshot.jpg)
+
 ## Download
 
 **[Download Code Portal.dmg](https://github.com/aenrichus/code-portal/raw/main/build/26/Code%20Portal.dmg)** (macOS 14.0+)
@@ -43,6 +45,7 @@ Initial public release.
 - **Code signing** — Sign and notarize the app through the Apple Developer Program so users don't see Gatekeeper warnings on first launch.
 - **Filesystem viewer** — Add a file browser panel so you can see which files are in the project folder without leaving the app.
 - **Icon transparency** — Fix the app and DMG icon to use a proper transparent background instead of the current composited dark fill.
+- **Dark/Light mode** — Support both macOS appearance modes with appropriate color schemes for the sidebar and terminal views.
 
 ## How It Works
 
