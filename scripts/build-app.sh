@@ -92,6 +92,12 @@ mkdir -p "$MOUNT_DIR/.background"
 cp "$BG_TMPFILE" "$MOUNT_DIR/.background/background.png"
 rm -rf "$BG_TMPDIR"
 
+# Set volume icon to app icon
+if [ -f "$ICON_FILE" ]; then
+    cp "$ICON_FILE" "$MOUNT_DIR/.VolumeIcon.icns"
+    SetFile -a C "$MOUNT_DIR"
+fi
+
 # Configure Finder window appearance via AppleScript
 osascript <<APPLESCRIPT
 tell application "Finder"

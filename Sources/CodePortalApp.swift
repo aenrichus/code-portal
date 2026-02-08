@@ -102,15 +102,18 @@ struct CodePortalApp: App {
         versionLabel.textColor = .secondaryLabelColor
         contentView.addSubview(versionLabel)
 
-        // Attribution — "Built by" prefix + clickable name
+        // Attribution — "Built by" prefix + clickable name (centered)
         let builtByPrefix = "Built by "
         let authorName = "Henry Wolf VII"
         let fullText = builtByPrefix + authorName
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.alignment = .center
         let attributedString = NSMutableAttributedString(
             string: fullText,
             attributes: [
                 .font: NSFont.systemFont(ofSize: 13),
-                .foregroundColor: NSColor.labelColor
+                .foregroundColor: NSColor.labelColor,
+                .paragraphStyle: paragraphStyle
             ]
         )
         let nameRange = NSRange(location: builtByPrefix.count, length: authorName.count)
@@ -124,7 +127,6 @@ struct CodePortalApp: App {
         attributionField.isSelectable = true  // Required for clickable links
         attributionField.allowsEditingTextAttributes = true
         attributionField.frame = NSRect(x: 0, y: 28, width: 300, height: 20)
-        attributionField.alignment = .center
         contentView.addSubview(attributionField)
 
         window.contentView = contentView
