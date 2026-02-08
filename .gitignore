@@ -6,7 +6,6 @@ DerivedData/
 .swiftpm/
 *.xcworkspace
 Package.resolved
-build/
 
 # Claude Code
 .claude/
