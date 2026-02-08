@@ -8,7 +8,7 @@ Now you're thinking with portals.
 
 ## Download
 
-Grab the latest build from [build/19/Code Portal.app](build/19/).
+Grab the latest DMG from [build/20/Code Portal.dmg](build/20/).
 
 To build from source:
 
@@ -16,7 +16,7 @@ To build from source:
 ./scripts/build-app.sh
 ```
 
-The `.app` bundle will be output to `build/<number>/Code Portal.app` and revealed in Finder.
+The build script produces both a `.app` bundle and a styled `.dmg` installer in `build/<number>/`.
 
 ## Features
 
