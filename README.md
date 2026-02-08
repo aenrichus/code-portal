@@ -73,4 +73,4 @@ Tests/
 
 ## License
 
-Private. Not yet open source.
+MIT License. See [LICENSE](LICENSE) for details.
