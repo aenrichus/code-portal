@@ -8,7 +8,7 @@ Now you're thinking with portals.
 
 ## Download
 
-**[Download Code Portal.dmg](https://github.com/aenrichus/code-portal/raw/main/build/25/Code%20Portal.dmg)** (macOS 14.0+)
+**[Download Code Portal.dmg](https://github.com/aenrichus/code-portal/raw/main/build/26/Code%20Portal.dmg)** (macOS 14.0+)
 
 Open the DMG and drag Code Portal to your Applications folder. You'll also need [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed and available on your PATH.
 
@@ -19,6 +19,12 @@ To build from source (requires Swift 6.0+):
 ```
 
 ## Release Notes
+
+### v1.0.1 (Build 26)
+
+- **About window** — Added About Code Portal panel (Code Portal menu > About Code Portal) with version info and attribution.
+- **Permanent window title** — Toolbar now always shows "Code Portal" instead of the selected project name.
+- **DMG volume icon** — The mounted DMG now shows the Code Portal icon instead of the default disk image icon.
 
 ### v1.0 (Build 20)
 
@@ -31,12 +37,6 @@ Initial public release.
 - **Session persistence** — Your repo list and working directories are saved automatically and restored on launch.
 - **Configurable CLI flags** — Set global flags (Cmd+,) or per-project flags (right-click > Edit Settings) passed to Claude Code on launch. Useful for `--model`, `--verbose`, `--permission-mode`, and other CLI options. Per-project flags are appended after global flags.
 - **DMG installer** — Styled drag-to-install DMG with every build.
-
-### v1.0.1 (Build 25)
-
-- **About window** — Added About Code Portal panel (Code Portal menu > About Code Portal) with version info and attribution.
-- **Permanent window title** — Toolbar now always shows "Code Portal" instead of the selected project name.
-- **DMG volume icon** — The mounted DMG now shows the Code Portal icon instead of the default disk image icon.
 
 ## Next Steps
 

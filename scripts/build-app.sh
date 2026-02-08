@@ -72,31 +72,28 @@ BG_TMPDIR=$(mktemp -d)
 BG_TMPFILE="$BG_TMPDIR/background.png"
 "$SCRIPT_DIR/generate-dmg-background.sh" "$BG_TMPFILE"
 
-# Stage contents (only the app and Applications symlink)
+# Stage contents (app and Applications symlink)
 cp -R "$APP_DIR" "$STAGING_DIR/"
 ln -s /Applications "$STAGING_DIR/Applications"
 
-# Create read-write DMG
+# Create read-write DMG with 10MB extra space for background/icon/DS_Store
+# HFS+ required for custom volume icon (SetFile -a C doesn't work on APFS)
+STAGING_SIZE=$(du -sm "$STAGING_DIR" | cut -f1)
+DMG_SIZE=$((STAGING_SIZE + 10))
 hdiutil create -volname "$DMG_NAME" -srcfolder "$STAGING_DIR" \
-    -ov -format UDRW "$DMG_TEMP" >/dev/null 2>&1
+    -ov -format UDRW -fs HFS+ -megabytes "$DMG_SIZE" "$DMG_TEMP" >/dev/null 2>&1
 
-# Mount and style with AppleScript
+# Mount and style
 MOUNT_DIR="/Volumes/$DMG_NAME"
 hdiutil attach -readwrite -noverify -noautoopen "$DMG_TEMP" >/dev/null 2>&1
 
 # Wait for volume to be fully mounted
 sleep 1
 
-# Copy background into the DMG volume's hidden .background folder
+# Add background image
 mkdir -p "$MOUNT_DIR/.background"
 cp "$BG_TMPFILE" "$MOUNT_DIR/.background/background.png"
 rm -rf "$BG_TMPDIR"
-
-# Set volume icon to app icon
-if [ -f "$ICON_FILE" ]; then
-    cp "$ICON_FILE" "$MOUNT_DIR/.VolumeIcon.icns"
-    SetFile -a C "$MOUNT_DIR"
-fi
 
 # Configure Finder window appearance via AppleScript
 osascript <<APPLESCRIPT
@@ -121,6 +118,12 @@ tell application "Finder"
     end tell
 end tell
 APPLESCRIPT
+
+# Set volume icon AFTER AppleScript (update without registering applications deletes it)
+if [ -f "$ICON_FILE" ]; then
+    cp "$ICON_FILE" "$MOUNT_DIR/.VolumeIcon.icns"
+    SetFile -a C "$MOUNT_DIR"
+fi
 
 # Ensure Finder releases the volume
 sync
