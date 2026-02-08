@@ -51,8 +51,9 @@ Claude Code is an Ink (React for CLI) TUI that renders via cursor repositioning 
 ## Requirements
 
 - macOS 14.0+
-- Swift 6.0+
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed and available on `PATH`
+
+Building from source also requires Swift 6.0+.
 
 ## Project Structure
 
