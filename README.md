@@ -8,7 +8,7 @@ Now you're thinking with portals.
 
 ## Download
 
-**[Download Code Portal.dmg](https://github.com/aenrichus/code-portal/raw/main/build/20/Code%20Portal.dmg)** (macOS 14.0+)
+**[Download Code Portal.dmg](https://github.com/aenrichus/code-portal/raw/main/build/24/Code%20Portal.dmg)** (macOS 14.0+)
 
 Open the DMG and drag Code Portal to your Applications folder. You'll also need [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed and available on your PATH.
 
@@ -31,6 +31,16 @@ Initial public release.
 - **Session persistence** — Your repo list and working directories are saved automatically and restored on launch.
 - **Configurable CLI flags** — Set global flags (Cmd+,) or per-project flags (right-click > Edit Settings) passed to Claude Code on launch. Useful for `--model`, `--verbose`, `--permission-mode`, and other CLI options. Per-project flags are appended after global flags.
 - **DMG installer** — Styled drag-to-install DMG with every build.
+
+### v1.0.1 (Build 24)
+
+- **About window** — Added About Code Portal panel (Code Portal menu > About Code Portal) with version info and attribution.
+- **Permanent window title** — Toolbar now always shows "Code Portal" instead of the selected project name.
+
+## Next Steps
+
+- **Code signing** — Sign and notarize the app through the Apple Developer Program so users don't see Gatekeeper warnings on first launch.
+- **Filesystem viewer** — Add a file browser panel so you can see which files are in the project folder without leaving the app.
 
 ## How It Works
 

@@ -67,7 +67,7 @@ struct CodePortalApp: App {
 
     private func showAboutWindow() {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 300, height: 220),
+            contentRect: NSRect(x: 0, y: 0, width: 300, height: 190),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
@@ -80,51 +80,52 @@ struct CodePortalApp: App {
         contentView.autoresizingMask = [.width, .height]
 
         // App icon
-        let iconView = NSImageView(frame: NSRect(x: 118, y: 140, width: 64, height: 64))
+        let iconView = NSImageView(frame: NSRect(x: 118, y: 110, width: 64, height: 64))
         iconView.image = NSApp.applicationIconImage
         iconView.imageScaling = .scaleProportionallyUpOrDown
         contentView.addSubview(iconView)
 
         // App name
         let nameLabel = NSTextField(labelWithString: "Code Portal")
-        nameLabel.frame = NSRect(x: 0, y: 112, width: 300, height: 24)
+        nameLabel.frame = NSRect(x: 0, y: 82, width: 300, height: 24)
         nameLabel.alignment = .center
         nameLabel.font = .boldSystemFont(ofSize: 16)
         contentView.addSubview(nameLabel)
 
         // Version
-        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0.0"
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0.1"
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? ""
         let versionLabel = NSTextField(labelWithString: "Version \(version) (\(build))")
-        versionLabel.frame = NSRect(x: 0, y: 90, width: 300, height: 18)
+        versionLabel.frame = NSRect(x: 0, y: 60, width: 300, height: 18)
         versionLabel.alignment = .center
         versionLabel.font = .systemFont(ofSize: 12)
         versionLabel.textColor = .secondaryLabelColor
         contentView.addSubview(versionLabel)
 
-        // Attribution
-        let builtByLabel = NSTextField(labelWithString: "Built by Henry Wolf")
-        builtByLabel.frame = NSRect(x: 0, y: 58, width: 300, height: 18)
-        builtByLabel.alignment = .center
-        builtByLabel.font = .systemFont(ofSize: 13)
-        contentView.addSubview(builtByLabel)
-
-        // GitHub link
-        let linkButton = NSButton(frame: NSRect(x: 75, y: 28, width: 150, height: 20))
-        linkButton.title = "github.com/aenrichus"
-        linkButton.bezelStyle = .inline
-        linkButton.isBordered = false
-        linkButton.attributedTitle = NSAttributedString(
-            string: "github.com/aenrichus",
+        // Attribution — "Built by" prefix + clickable name
+        let builtByPrefix = "Built by "
+        let authorName = "Henry Wolf VII"
+        let fullText = builtByPrefix + authorName
+        let attributedString = NSMutableAttributedString(
+            string: fullText,
             attributes: [
-                .foregroundColor: NSColor.linkColor,
-                .font: NSFont.systemFont(ofSize: 12),
-                .underlineStyle: NSUnderlineStyle.single.rawValue
+                .font: NSFont.systemFont(ofSize: 13),
+                .foregroundColor: NSColor.labelColor
             ]
         )
-        linkButton.target = nil
-        linkButton.action = #selector(AppDelegate.openGitHubLink)
-        contentView.addSubview(linkButton)
+        let nameRange = NSRange(location: builtByPrefix.count, length: authorName.count)
+        attributedString.addAttributes([
+            .link: URL(string: "https://github.com/aenrichus")!,
+            .foregroundColor: NSColor.linkColor,
+            .underlineStyle: NSUnderlineStyle.single.rawValue
+        ], range: nameRange)
+
+        let attributionField = NSTextField(labelWithAttributedString: attributedString)
+        attributionField.isSelectable = true  // Required for clickable links
+        attributionField.allowsEditingTextAttributes = true
+        attributionField.frame = NSRect(x: 0, y: 28, width: 300, height: 20)
+        attributionField.alignment = .center
+        contentView.addSubview(attributionField)
 
         window.contentView = contentView
         window.makeKeyAndOrderFront(nil)
@@ -219,12 +220,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         sm.terminateAllSessions()
         return .terminateNow
-    }
-
-    // MARK: - About Window
-
-    @objc func openGitHubLink() {
-        NSWorkspace.shared.open(URL(string: "https://github.com/aenrichus")!)
     }
 
     // MARK: - URL Scheme Handler (no-op in v1)
