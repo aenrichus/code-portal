@@ -42,6 +42,7 @@ Initial public release.
 
 - **Code signing** — Sign and notarize the app through the Apple Developer Program so users don't see Gatekeeper warnings on first launch.
 - **Filesystem viewer** — Add a file browser panel so you can see which files are in the project folder without leaving the app.
+- **Icon transparency** — Fix the app and DMG icon to use a proper transparent background instead of the current composited dark fill.
 
 ## How It Works
 
