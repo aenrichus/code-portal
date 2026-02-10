@@ -10,7 +10,7 @@ Now you're thinking with portals.
 
 ## Download
 
-**[Download Code Portal.dmg](https://github.com/aenrichus/code-portal/raw/main/build/26/Code%20Portal.dmg)** (macOS 14.0+)
+**[Download Code Portal.dmg](https://github.com/aenrichus/code-portal/raw/main/build/29/Code%20Portal.dmg)** (macOS 14.0+)
 
 Open the DMG and drag Code Portal to your Applications folder. You'll also need [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed and available on your PATH.
 
@@ -21,6 +21,11 @@ To build from source (requires Swift 6.0+):
 ```
 
 ## Release Notes
+
+### v1.1.0 (Build 29)
+
+- **Dark/Light mode** — 3-way appearance toggle (Dark, Light, Auto) in Settings (Cmd+,). Auto follows your macOS system appearance. Terminal colors update instantly with matched ANSI palettes for each mode.
+- **Filesystem viewer** — Collapsible file tree panel in the right sidebar. Toggle with the toolbar button or Cmd+Shift+B. Lazy-loaded directory tree with context menus for Reveal in Finder, Copy Path, and Open in Default Editor.
 
 ### v1.0.1 (Build 26)
 
@@ -43,9 +48,7 @@ Initial public release.
 ## Next Steps
 
 - **Code signing** — Sign and notarize the app through the Apple Developer Program so users don't see Gatekeeper warnings on first launch.
-- **Filesystem viewer** — Add a file browser panel so you can see which files are in the project folder without leaving the app.
 - **Icon transparency** — Fix the app and DMG icon to use a proper transparent background instead of the current composited dark fill.
-- **Dark/Light mode** — Support both macOS appearance modes with appropriate color schemes for the sidebar and terminal views.
 
 ## How It Works
 
@@ -55,12 +58,14 @@ Claude Code is an Ink (React for CLI) TUI that renders via cursor repositioning 
 
 ```
 Sources/
-  CodePortalApp.swift          App entry point
+  CodePortalApp.swift              App entry point
   Managers/SessionManager.swift    Session lifecycle and terminal pool
+  Models/FileNode.swift            Recursive file tree model
   Models/TerminalSession.swift     Session state and event model
   Terminal/AttentionDetector.swift  Pure-function attention detection
   Terminal/MonitoredTerminalView.swift  SwiftTerm subclass with buffer scanning
-  Views/ContentView.swift          Main split view
+  Views/ContentView.swift          Main split view with file tree panel
+  Views/FileTreeView.swift         Collapsible file browser sidebar
   Views/SettingsView.swift         Global settings (Cmd+,)
   Views/SidebarView.swift          Repo list with status indicators
   Views/SessionDetailView.swift    Terminal host view
