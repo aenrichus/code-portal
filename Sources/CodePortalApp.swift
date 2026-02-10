@@ -72,6 +72,14 @@ struct CodePortalApp: App {
                 .keyboardShortcut("[", modifiers: .command)
                 .disabled(sessionManager.sessions.count < 2)
             }
+
+            CommandGroup(after: .sidebar) {
+                Button("Toggle File Browser") {
+                    let current = UserDefaults.standard.bool(forKey: "showFileTree")
+                    UserDefaults.standard.set(!current, forKey: "showFileTree")
+                }
+                .keyboardShortcut("b", modifiers: [.command, .shift])
+            }
         }
 
         Settings {

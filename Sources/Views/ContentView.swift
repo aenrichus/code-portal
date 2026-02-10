@@ -1,8 +1,10 @@
 import SwiftUI
 
 /// Main app layout: NavigationSplitView with sidebar + detail.
+/// The detail area uses HSplitView to optionally show a file tree panel on the right.
 struct ContentView: View {
     @Bindable var sessionManager: SessionManager
+    @AppStorage("showFileTree") private var showFileTree: Bool = false
 
     var body: some View {
         NavigationSplitView {
@@ -10,12 +12,28 @@ struct ContentView: View {
         } detail: {
             if let selectedId = sessionManager.selectedSessionId,
                let session = sessionManager.sessions.first(where: { $0.id == selectedId }) {
-                SessionDetailView(session: session, sessionManager: sessionManager)
+                HSplitView {
+                    SessionDetailView(session: session, sessionManager: sessionManager)
+                        .frame(minWidth: 400)
+
+                    if showFileTree {
+                        FileTreeView(rootURL: URL(fileURLWithPath: session.repo.path))
+                            .frame(minWidth: 200, idealWidth: 250, maxWidth: 400)
+                    }
+                }
             } else {
                 emptyState
             }
         }
         .navigationSplitViewColumnWidth(min: 200, ideal: 250, max: 350)
+        .toolbar {
+            ToolbarItem(placement: .automatic) {
+                Button(action: { showFileTree.toggle() }) {
+                    Image(systemName: "sidebar.trailing")
+                }
+                .help(showFileTree ? "Hide file browser" : "Show file browser")
+            }
+        }
     }
 
     // MARK: - Empty State
