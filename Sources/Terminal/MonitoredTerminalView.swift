@@ -43,6 +43,68 @@ final class MonitoredTerminalView: LocalProcessTerminalView {
     /// emitting duplicate transitions.
     private var lastScanFoundAttention = false
 
+    // MARK: - Theme
+
+    /// Light-mode ANSI palette: 16 colors tuned for readability on a light background.
+    /// Based on macOS Terminal.app colors with contrast adjustments.
+    /// Uses SwiftTerm.Color(red:green:blue:) with 16-bit values (value * 257 maps 8-bit to 16-bit).
+    private static let lightAnsiColors: [SwiftTerm.Color] = [
+        // dark colors (0-7)
+        SwiftTerm.Color(red: 0, green: 0, blue: 0),                                 // black
+        SwiftTerm.Color(red: 194 * 257, green: 54 * 257, blue: 33 * 257),           // red
+        SwiftTerm.Color(red: 37 * 257, green: 148 * 257, blue: 36 * 257),           // green (darkened)
+        SwiftTerm.Color(red: 143 * 257, green: 133 * 257, blue: 0),                 // yellow (darkened)
+        SwiftTerm.Color(red: 0, green: 30 * 257, blue: 195 * 257),                  // blue
+        SwiftTerm.Color(red: 178 * 257, green: 0, blue: 178 * 257),                 // magenta
+        SwiftTerm.Color(red: 0, green: 140 * 257, blue: 160 * 257),                 // cyan (darkened)
+        SwiftTerm.Color(red: 100 * 257, green: 100 * 257, blue: 100 * 257),         // white (dimmed for light bg)
+        // bright colors (8-15)
+        SwiftTerm.Color(red: 86 * 257, green: 86 * 257, blue: 86 * 257),            // bright black (gray)
+        SwiftTerm.Color(red: 220 * 257, green: 44 * 257, blue: 20 * 257),           // bright red
+        SwiftTerm.Color(red: 28 * 257, green: 180 * 257, blue: 28 * 257),           // bright green
+        SwiftTerm.Color(red: 186 * 257, green: 170 * 257, blue: 0),                 // bright yellow
+        SwiftTerm.Color(red: 50 * 257, green: 50 * 257, blue: 220 * 257),           // bright blue
+        SwiftTerm.Color(red: 200 * 257, green: 40 * 257, blue: 200 * 257),          // bright magenta
+        SwiftTerm.Color(red: 0, green: 180 * 257, blue: 190 * 257),                 // bright cyan
+        SwiftTerm.Color(red: 60 * 257, green: 60 * 257, blue: 60 * 257),            // bright white (darkened)
+    ]
+
+    /// Dark-mode ANSI palette: matches SwiftTerm's default installed colors.
+    /// Reproduced here because `Color.defaultInstalledColors` is internal.
+    private static let darkAnsiColors: [SwiftTerm.Color] = [
+        SwiftTerm.Color(red: 0, green: 0, blue: 0),                                 // black
+        SwiftTerm.Color(red: 153 * 257, green: 0, blue: 1 * 257),                   // red
+        SwiftTerm.Color(red: 0, green: 166 * 257, blue: 3 * 257),                   // green
+        SwiftTerm.Color(red: 153 * 257, green: 153 * 257, blue: 0),                 // yellow
+        SwiftTerm.Color(red: 3 * 257, green: 0, blue: 178 * 257),                   // blue
+        SwiftTerm.Color(red: 178 * 257, green: 0, blue: 178 * 257),                 // magenta
+        SwiftTerm.Color(red: 0, green: 165 * 257, blue: 178 * 257),                 // cyan
+        SwiftTerm.Color(red: 191 * 257, green: 191 * 257, blue: 191 * 257),         // white
+        SwiftTerm.Color(red: 138 * 257, green: 137 * 257, blue: 138 * 257),         // bright black
+        SwiftTerm.Color(red: 229 * 257, green: 0, blue: 1 * 257),                   // bright red
+        SwiftTerm.Color(red: 0, green: 216 * 257, blue: 0),                         // bright green
+        SwiftTerm.Color(red: 229 * 257, green: 229 * 257, blue: 0),                 // bright yellow
+        SwiftTerm.Color(red: 7 * 257, green: 0, blue: 254 * 257),                   // bright blue
+        SwiftTerm.Color(red: 229 * 257, green: 0, blue: 229 * 257),                 // bright magenta
+        SwiftTerm.Color(red: 0, green: 229 * 257, blue: 229 * 257),                 // bright cyan
+        SwiftTerm.Color(red: 229 * 257, green: 229 * 257, blue: 229 * 257),         // bright white
+    ]
+
+    /// Apply dark or light terminal theme.
+    /// Sets foreground/background colors and installs the appropriate 16-color ANSI palette.
+    func applyTheme(isDark: Bool) {
+        if isDark {
+            nativeForegroundColor = NSColor(white: 0.85, alpha: 1.0)
+            nativeBackgroundColor = NSColor(red: 0.1, green: 0.1, blue: 0.12, alpha: 1.0)
+            installColors(Self.darkAnsiColors)
+        } else {
+            nativeForegroundColor = NSColor(white: 0.15, alpha: 1.0)
+            nativeBackgroundColor = NSColor(white: 0.98, alpha: 1.0)
+            installColors(Self.lightAnsiColors)
+        }
+        setNeedsDisplay(bounds)
+    }
+
     // MARK: - Focus Management
 
     /// Request keyboard focus when the view enters a window.

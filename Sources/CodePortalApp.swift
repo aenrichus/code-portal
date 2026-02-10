@@ -9,16 +9,30 @@ import UserNotifications
 struct CodePortalApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @State private var sessionManager = SessionManager()
+    @AppStorage("appearance") private var appearance: String = "auto"
+
+    private var colorScheme: ColorScheme? {
+        switch appearance {
+        case "dark": return .dark
+        case "light": return .light
+        default: return nil  // nil = follow system
+        }
+    }
 
     var body: some Scene {
         WindowGroup {
             ContentView(sessionManager: sessionManager)
                 .frame(minWidth: 700, minHeight: 500)
                 .navigationTitle("Code Portal")
+                .preferredColorScheme(colorScheme)
                 .onAppear {
                     appDelegate.sessionManager = sessionManager
                     sessionManager.requestNotificationPermission()
                     sessionManager.validateClaudeCLI()
+                    sessionManager.updateTerminalThemes()
+                }
+                .onChange(of: appearance) { _, _ in
+                    sessionManager.updateTerminalThemes()
                 }
         }
         .windowStyle(.automatic)
@@ -194,6 +208,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // Clear dock badge when app is activated
             sessionManager?.attentionCount = sessionManager?.sessions.filter { $0.state == .attention }.count ?? 0
             sessionManager?.updateDockBadge()
+            // Re-apply terminal themes in case system appearance changed while inactive
+            sessionManager?.updateTerminalThemes()
         }
     }
 

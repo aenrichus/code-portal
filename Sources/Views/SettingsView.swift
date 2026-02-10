@@ -3,11 +3,24 @@ import SwiftUI
 /// Global settings window (Cmd+,).
 struct SettingsView: View {
     @AppStorage("globalClaudeArgs") private var globalClaudeArgs: String = ""
+    @AppStorage("appearance") private var appearance: String = "auto"
     @State private var draft: String = ""
     @State private var hasChanges: Bool = false
 
     var body: some View {
         Form {
+            Section("Appearance") {
+                Picker("Mode", selection: $appearance) {
+                    Text("Dark").tag("dark")
+                    Text("Light").tag("light")
+                    Text("Auto").tag("auto")
+                }
+                .pickerStyle(.segmented)
+                Text("Auto follows your macOS system appearance.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Section("Claude CLI Arguments") {
                 TextField("Global flags (applied to all repos)", text: $draft)
                     .textFieldStyle(.roundedBorder)

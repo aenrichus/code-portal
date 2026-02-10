@@ -185,7 +185,32 @@ final class SessionManager: SessionControlling {
         // Configure process delegate for exit handling
         view.processDelegate = self
 
+        // Apply current theme
+        view.applyTheme(isDark: resolveIsDark())
+
         terminalViewPool[session.id] = view
+    }
+
+    // MARK: - Appearance / Theme
+
+    /// Update all terminal views to match the current appearance setting.
+    func updateTerminalThemes() {
+        let isDark = resolveIsDark()
+        for (_, view) in terminalViewPool {
+            view.applyTheme(isDark: isDark)
+        }
+    }
+
+    /// Resolve whether the effective appearance is dark.
+    private func resolveIsDark() -> Bool {
+        let appearance = UserDefaults.standard.string(forKey: "appearance") ?? "auto"
+        switch appearance {
+        case "dark": return true
+        case "light": return false
+        default:
+            // Auto: check effective system appearance
+            return NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        }
     }
 
     /// Start a Claude Code process in the given terminal view.
