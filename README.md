@@ -10,7 +10,7 @@ Now you're thinking with portals.
 
 ## Download
 
-**[Download Code Portal.dmg](https://github.com/aenrichus/code-portal/raw/main/build/29/Code%20Portal.dmg)** (macOS 14.0+)
+**[Download Code Portal.dmg](https://github.com/aenrichus/code-portal/raw/main/build/31/Code%20Portal.dmg)** (macOS 14.0+)
 
 Open the DMG and drag Code Portal to your Applications folder. You'll also need [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed and available on your PATH.
 
@@ -21,6 +21,12 @@ To build from source (requires Swift 6.0+):
 ```
 
 ## Release Notes
+
+### v1.2.0 (Build 31)
+
+- **Text file viewer** — Double-click or right-click > View File on any file in the file tree to open a read-only popup window with syntax highlighting powered by [Highlightr](https://github.com/raspu/Highlightr). Supports auto-detected language highlighting, dark/light theme matching, and graceful handling of binary files and large files (>1MB).
+- **Context-aware Cmd+W** — Cmd+W now closes file viewer and About popups first, only removing the selected project when the main window is focused.
+- **Path security** — File viewer uses path-component validation (not string prefix) to prevent symlink traversal outside the project directory.
 
 ### v1.1.0 (Build 29)
 
@@ -60,12 +66,14 @@ Claude Code is an Ink (React for CLI) TUI that renders via cursor repositioning 
 Sources/
   CodePortalApp.swift              App entry point
   Managers/SessionManager.swift    Session lifecycle and terminal pool
+  Models/FileContent.swift         File content model with async loading
   Models/FileNode.swift            Recursive file tree model
   Models/TerminalSession.swift     Session state and event model
   Terminal/AttentionDetector.swift  Pure-function attention detection
   Terminal/MonitoredTerminalView.swift  SwiftTerm subclass with buffer scanning
   Views/ContentView.swift          Main split view with file tree panel
   Views/FileTreeView.swift         Collapsible file browser sidebar
+  Views/FileViewerView.swift       Syntax-highlighted file viewer popup
   Views/SettingsView.swift         Global settings (Cmd+,)
   Views/SidebarView.swift          Repo list with status indicators
   Views/SessionDetailView.swift    Terminal host view

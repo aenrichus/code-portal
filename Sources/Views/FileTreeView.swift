@@ -5,6 +5,7 @@ import AppKit
 /// Uses recursive DisclosureGroup for lazy-loaded collapsible folders.
 struct FileTreeView: View {
     let rootURL: URL
+    var onFileOpen: ((URL) -> Void)?
     @State private var rootNode: FileNode?
 
     var body: some View {
@@ -25,7 +26,7 @@ struct FileTreeView: View {
             if let root = rootNode, let children = root.children, !children.isEmpty {
                 List {
                     ForEach(children) { node in
-                        FileNodeRow(node: node)
+                        FileNodeRow(node: node, onFileOpen: onFileOpen)
                     }
                 }
                 .listStyle(.sidebar)
@@ -60,13 +61,14 @@ struct FileTreeView: View {
 /// A single row in the file tree. Directories use DisclosureGroup for expand/collapse.
 private struct FileNodeRow: View {
     @Bindable var node: FileNode
+    var onFileOpen: ((URL) -> Void)?
 
     var body: some View {
         if node.isDirectory {
             DisclosureGroup(isExpanded: $node.isExpanded) {
                 if let children = node.children {
                     ForEach(children) { child in
-                        FileNodeRow(node: child)
+                        FileNodeRow(node: child, onFileOpen: onFileOpen)
                     }
                 }
             } label: {
@@ -77,19 +79,22 @@ private struct FileNodeRow: View {
             .onChange(of: node.isExpanded) { _, isExpanded in
                 if isExpanded { node.loadChildrenIfNeeded() }
             }
-            .contextMenu { fileContextMenu(for: node) }
+            .contextMenu { directoryContextMenu(for: node) }
         } else {
             Label(node.name, systemImage: fileIcon(for: node.name))
                 .lineLimit(1)
                 .truncationMode(.middle)
+                .onTapGesture(count: 2) {
+                    onFileOpen?(node.url)
+                }
                 .contextMenu { fileContextMenu(for: node) }
         }
     }
 
-    // MARK: - Context Menu
+    // MARK: - Context Menus
 
     @ViewBuilder
-    private func fileContextMenu(for node: FileNode) -> some View {
+    private func directoryContextMenu(for node: FileNode) -> some View {
         Button("Reveal in Finder") {
             NSWorkspace.shared.activateFileViewerSelecting([node.url])
         }
@@ -97,11 +102,24 @@ private struct FileNodeRow: View {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(node.url.path, forType: .string)
         }
-        if !node.isDirectory {
-            Divider()
-            Button("Open in Default Editor") {
-                NSWorkspace.shared.open(node.url)
-            }
+    }
+
+    @ViewBuilder
+    private func fileContextMenu(for node: FileNode) -> some View {
+        Button("View File") {
+            onFileOpen?(node.url)
+        }
+        Divider()
+        Button("Reveal in Finder") {
+            NSWorkspace.shared.activateFileViewerSelecting([node.url])
+        }
+        Button("Copy Path") {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(node.url.path, forType: .string)
+        }
+        Divider()
+        Button("Open in Default Editor") {
+            NSWorkspace.shared.open(node.url)
         }
     }
 

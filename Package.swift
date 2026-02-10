@@ -7,12 +7,13 @@ let package = Package(
         .macOS(.v14)
     ],
     dependencies: [
-        .package(url: "https://github.com/migueldeicaza/SwiftTerm.git", from: "1.10.0")
+        .package(url: "https://github.com/migueldeicaza/SwiftTerm.git", from: "1.10.0"),
+        .package(url: "https://github.com/raspu/Highlightr.git", from: "2.2.0"),
     ],
     targets: [
         .executableTarget(
             name: "CodePortal",
-            dependencies: ["SwiftTerm"],
+            dependencies: ["SwiftTerm", "Highlightr"],
             path: "Sources",
             exclude: [
                 "Resources/Info.plist",

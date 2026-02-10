@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import UserNotifications
 
 /// Main app entry point.
@@ -21,7 +22,9 @@ struct CodePortalApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView(sessionManager: sessionManager)
+            ContentView(sessionManager: sessionManager, onFileOpen: { url in
+                openFileViewer(for: url)
+            })
                 .frame(minWidth: 700, minHeight: 500)
                 .navigationTitle("Code Portal")
                 .preferredColorScheme(colorScheme)
@@ -52,11 +55,18 @@ struct CodePortalApp: App {
             }
 
             CommandGroup(after: .newItem) {
-                Button("Close Project") {
-                    sessionManager.removeSelectedWithConfirmation()
+                Button("Close") {
+                    // Context-aware: close popup windows (file viewer, about) first,
+                    // only fall through to project removal for the main window.
+                    if let keyWindow = NSApp.keyWindow,
+                       let id = keyWindow.identifier?.rawValue,
+                       id == "fileViewer" || id == "about" {
+                        keyWindow.close()
+                    } else {
+                        sessionManager.removeSelectedWithConfirmation()
+                    }
                 }
                 .keyboardShortcut("w", modifiers: .command)
-                .disabled(sessionManager.selectedSessionId == nil)
 
                 Divider()
 
@@ -95,6 +105,7 @@ struct CodePortalApp: App {
             defer: false
         )
         window.title = "About Code Portal"
+        window.identifier = NSUserInterfaceItemIdentifier("about")
         window.isReleasedWhenClosed = false
         window.center()
 
@@ -152,6 +163,59 @@ struct CodePortalApp: App {
         contentView.addSubview(attributionField)
 
         window.contentView = contentView
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    /// Validate and load a file, then open it in a popup viewer window.
+    /// Security: resolves symlinks and validates path components stay within the project root.
+    private func openFileViewer(for url: URL) {
+        // Resolve symlinks to prevent path traversal
+        let resolvedURL = url.resolvingSymlinksInPath()
+
+        // Path-component security check: ensure file is within a known project root.
+        // Uses component comparison (not hasPrefix) to prevent /foo/bar matching /foo/barbaz.
+        let resolvedComponents = resolvedURL.pathComponents
+        let isWithinProject = sessionManager.sessions.contains { session in
+            let rootComponents = URL(fileURLWithPath: session.repo.path)
+                .resolvingSymlinksInPath().pathComponents
+            return resolvedComponents.starts(with: rootComponents)
+        }
+
+        guard isWithinProject else {
+            let alert = NSAlert()
+            alert.messageText = "Cannot open file"
+            alert.informativeText = "The file is outside the project directory."
+            alert.alertStyle = .warning
+            alert.runModal()
+            return
+        }
+
+        Task {
+            let content = await FileContent.load(from: resolvedURL)
+            showFileViewerWindow(content: content)
+        }
+    }
+
+    /// Open a read-only file viewer popup window for the given content.
+    /// Matches the About window pattern: standalone NSWindow + NSHostingView.
+    private func showFileViewerWindow(content: FileContent) {
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 700, height: 500),
+            styleMask: [.titled, .closable, .resizable, .miniaturizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = content.filename
+        window.identifier = NSUserInterfaceItemIdentifier("fileViewer")
+        window.isReleasedWhenClosed = false
+        window.center()
+
+        let hostingView = NSHostingView(
+            rootView: FileViewerView(content: content)
+                .preferredColorScheme(colorScheme)
+        )
+        window.contentView = hostingView
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }

@@ -4,6 +4,7 @@ import SwiftUI
 /// The detail area uses HSplitView to optionally show a file tree panel on the right.
 struct ContentView: View {
     @Bindable var sessionManager: SessionManager
+    var onFileOpen: ((URL) -> Void)?
     @AppStorage("showFileTree") private var showFileTree: Bool = false
 
     var body: some View {
@@ -17,8 +18,11 @@ struct ContentView: View {
                         .frame(minWidth: 400)
 
                     if showFileTree {
-                        FileTreeView(rootURL: URL(fileURLWithPath: session.repo.path))
-                            .frame(minWidth: 200, idealWidth: 250, maxWidth: 400)
+                        FileTreeView(
+                            rootURL: URL(fileURLWithPath: session.repo.path),
+                            onFileOpen: onFileOpen
+                        )
+                        .frame(minWidth: 200, idealWidth: 250, maxWidth: 400)
                     }
                 }
             } else {
