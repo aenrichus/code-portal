@@ -26,6 +26,9 @@ struct FileViewerView: View {
             case .text(let code, let language):
                 HighlightedCodeView(code: code, language: language, isDark: isDark)
 
+            case .image(let data):
+                imagePreview(data: data)
+
             case .binary:
                 statusView(icon: "doc.questionmark", title: "Not a Text File",
                            message: "This file appears to be binary and cannot be displayed.")
@@ -43,9 +46,14 @@ struct FileViewerView: View {
 
     // MARK: - Toolbar
 
+    private var toolbarIcon: String {
+        if case .image = content.contentType { return "photo" }
+        return "doc.text"
+    }
+
     private var viewerToolbar: some View {
         HStack {
-            Image(systemName: "doc.text")
+            Image(systemName: toolbarIcon)
                 .foregroundStyle(.secondary)
             Text(content.filename)
                 .font(.headline)
@@ -75,6 +83,24 @@ struct FileViewerView: View {
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    // MARK: - Image Preview
+
+    private func imagePreview(data: Data) -> some View {
+        Group {
+            if let nsImage = NSImage(data: data) {
+                Image(nsImage: nsImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .padding(12)
+            } else {
+                statusView(icon: "photo.badge.exclamationmark", title: "Cannot Display Image",
+                           message: "The image data could not be decoded.")
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(isDark ? Color(white: 0.12) : Color(white: 0.95))
     }
 }
 

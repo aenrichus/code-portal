@@ -10,7 +10,7 @@ Now you're thinking with portals.
 
 ## Download
 
-**[Download Code Portal.dmg](https://github.com/aenrichus/code-portal/raw/main/build/31/Code%20Portal.dmg)** (macOS 14.0+)
+**[Download Code Portal.dmg](https://github.com/aenrichus/code-portal/raw/main/build/38/Code%20Portal.dmg)** (macOS 14.0+)
 
 Open the DMG and drag Code Portal to your Applications folder. You'll also need [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed and available on your PATH.
 
@@ -21,6 +21,12 @@ To build from source (requires Swift 6.0+):
 ```
 
 ## Release Notes
+
+### v1.2.1 (Build 38)
+
+- **Image preview** — Image files (PNG, JPG, GIF, WebP, HEIC, SVG, etc.) now display in the file viewer popup, scaled to fit the window. Up to 10MB supported.
+- **Fix: Restart session keyboard input** — Restarting a session via right-click no longer breaks keyboard input. Root cause was a race condition in SwiftTerm's async process lifecycle.
+- **Fix: Global settings on restart** — Global CLI flags from Settings now correctly apply on session restart instead of using stale cached values.
 
 ### v1.2.0 (Build 31)
 

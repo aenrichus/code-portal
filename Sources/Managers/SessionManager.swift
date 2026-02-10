@@ -123,11 +123,14 @@ final class SessionManager: SessionControlling {
 
     func restartSession(id: UUID, caller: CallerContext) {
         guard let session = sessions.first(where: { $0.id == id }) else { return }
-        guard let view = terminalViewPool[id] else { return }
+        guard let oldView = terminalViewPool[id] else { return }
 
-        // Terminate existing process
-        view.terminate()
-        view.resetForNewProcess()
+        // Terminate existing process. The old view's async completion handler
+        // will eventually set its `running = false`, but that's harmless since
+        // we're discarding it — a fresh view avoids the race condition.
+        oldView.terminate()
+        oldView.session = nil
+        oldView.sessionManager = nil
 
         // Reset state
         if session.state == .attention {
@@ -137,8 +140,19 @@ final class SessionManager: SessionControlling {
         session.state = .running
         session.emit(.stateChanged(sessionId: id, newState: .running))
 
-        // Start new process
-        startClaudeProcess(in: view, session: session)
+        // Create a fresh terminal view to avoid race condition:
+        // SwiftTerm's LocalProcess.terminate() is async — the old subprocess's
+        // completion handler runs `self.running = false` on MainActor AFTER
+        // startProcess sets `running = true` on the new process, silently
+        // disabling all keyboard input via the `guard running` in send().
+        createTerminalView(for: session)
+        guard let newView = terminalViewPool[id] else { return }
+
+        // Bump restartCount so SwiftUI recreates the TerminalViewWrapper,
+        // which calls makeNSView and picks up the new view from the pool.
+        session.restartCount += 1
+
+        startClaudeProcess(in: newView, session: session)
     }
 
     func sendInput(sessionId: UUID, text: String, caller: CallerContext) {
@@ -231,8 +245,11 @@ final class SessionManager: SessionControlling {
         // Curated environment: allowlist only. Strip all DYLD_* variables.
         let env = buildCuratedEnvironment()
 
-        // Merge global + per-repo args (per-repo appended after global)
-        let globalParsed = globalClaudeArgs
+        // Merge global + per-repo args (per-repo appended after global).
+        // Read directly from UserDefaults — @AppStorage on non-View classes
+        // caches the init-time value and doesn't sync with later changes.
+        let currentGlobalArgs = UserDefaults.standard.string(forKey: "globalClaudeArgs") ?? ""
+        let globalParsed = currentGlobalArgs
             .split(separator: " ", omittingEmptySubsequences: true)
             .map(String.init)
         let repoParsed = (session.repo.args ?? "")

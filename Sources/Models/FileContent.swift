@@ -9,6 +9,7 @@ struct FileContent: Sendable {
 
     enum ContentType: Sendable {
         case text(String, language: String?)
+        case image(Data)
         case binary
         case tooLarge
         case error(String)
@@ -16,15 +17,22 @@ struct FileContent: Sendable {
 
     let contentType: ContentType
 
+    /// File extensions recognized as images.
+    private static let imageExtensions: Set<String> = [
+        "png", "jpg", "jpeg", "gif", "bmp", "tiff", "tif", "webp", "heic", "heif", "ico", "svg"
+    ]
+
     /// Async factory -- reads file off the main thread.
     static func load(from url: URL) async -> FileContent {
         let filename = url.lastPathComponent
+        let ext = url.pathExtension.lowercased()
         let fileSize: Int64 = (try? FileManager.default.attributesOfItem(
             atPath: url.path)[.size] as? Int64) ?? 0
 
-        // Size check
-        let oneMB: Int64 = 1_048_576
-        guard fileSize <= oneMB else {
+        // Size check: 10MB for images, 1MB for text
+        let isImage = imageExtensions.contains(ext)
+        let maxSize: Int64 = isImage ? 10_485_760 : 1_048_576
+        guard fileSize <= maxSize else {
             return FileContent(url: url, filename: filename,
                                fileSize: fileSize, contentType: .tooLarge)
         }
@@ -33,6 +41,12 @@ struct FileContent: Sendable {
         guard let data = try? Data(contentsOf: url) else {
             return FileContent(url: url, filename: filename,
                                fileSize: fileSize, contentType: .error("Could not read file"))
+        }
+
+        // Image detection by extension (images contain null bytes, so check before binary scan)
+        if isImage {
+            return FileContent(url: url, filename: filename,
+                               fileSize: fileSize, contentType: .image(data))
         }
 
         // Binary detection: check for null bytes in first 8192 bytes

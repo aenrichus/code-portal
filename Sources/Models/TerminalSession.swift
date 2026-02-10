@@ -35,6 +35,9 @@ final class TerminalSession: Identifiable {
     var repo: RepoInfo
     var state: SessionState = .idle
 
+    /// Incremented on each restart to force SwiftUI view recreation.
+    var restartCount: Int = 0
+
     /// Multi-consumer event continuations. Factory method `events()` creates new ones.
     /// All continuations are `finish()`-ed on session removal.
     var eventContinuations: [AsyncStream<SessionEvent>.Continuation] = []

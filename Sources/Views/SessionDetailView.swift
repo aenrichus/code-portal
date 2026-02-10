@@ -14,7 +14,7 @@ struct SessionDetailView: View {
             // .id() forces SwiftUI to call makeNSView when session changes,
             // but the pool retains the view so there's no actual destruction.
             TerminalViewWrapper(sessionManager: sessionManager, sessionId: session.id)
-                .id(session.id)
+                .id("\(session.id)-\(session.restartCount)")
 
             // Restart overlay when session is idle (process exited)
             if session.state == .idle {
