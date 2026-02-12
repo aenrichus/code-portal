@@ -1,11 +1,13 @@
 import SwiftUI
 
 /// Main app layout: NavigationSplitView with sidebar + detail.
-/// The detail area uses HSplitView to optionally show a file tree panel on the right.
+/// The detail area uses HSplitView to optionally show a right panel (Files / Changes tabs).
 struct ContentView: View {
     @Bindable var sessionManager: SessionManager
     var onFileOpen: ((URL) -> Void)?
+    var onDiffOpen: ((FileDiff) -> Void)?
     @AppStorage("showFileTree") private var showFileTree: Bool = false
+    @State private var rightPanelTab: String = "files"
 
     var body: some View {
         NavigationSplitView {
@@ -18,11 +20,8 @@ struct ContentView: View {
                         .frame(minWidth: 400)
 
                     if showFileTree {
-                        FileTreeView(
-                            rootURL: URL(fileURLWithPath: session.repo.path),
-                            onFileOpen: onFileOpen
-                        )
-                        .frame(minWidth: 200, idealWidth: 250, maxWidth: 400)
+                        rightPanel(for: session)
+                            .frame(minWidth: 200, idealWidth: 250, maxWidth: 400)
                     }
                 }
             } else {
@@ -35,7 +34,39 @@ struct ContentView: View {
                 Button(action: { showFileTree.toggle() }) {
                     Image(systemName: "sidebar.trailing")
                 }
-                .help(showFileTree ? "Hide file browser" : "Show file browser")
+                .help(showFileTree ? "Hide right panel" : "Show right panel")
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .switchToChangesTab)) { _ in
+            rightPanelTab = "changes"
+        }
+    }
+
+    // MARK: - Right Panel
+
+    @ViewBuilder
+    private func rightPanel(for session: TerminalSession) -> some View {
+        VStack(spacing: 0) {
+            Picker("", selection: $rightPanelTab) {
+                Text("Files").tag("files")
+                Text("Changes").tag("changes")
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+
+            Divider()
+
+            if rightPanelTab == "files" {
+                FileTreeView(
+                    rootURL: URL(fileURLWithPath: session.repo.path),
+                    onFileOpen: onFileOpen
+                )
+            } else {
+                GitChangesView(
+                    repoPath: session.repo.path,
+                    onDiffOpen: onDiffOpen
+                )
             }
         }
     }

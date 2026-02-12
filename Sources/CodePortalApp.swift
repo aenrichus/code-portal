@@ -24,6 +24,8 @@ struct CodePortalApp: App {
         WindowGroup {
             ContentView(sessionManager: sessionManager, onFileOpen: { url in
                 openFileViewer(for: url)
+            }, onDiffOpen: { fileDiff in
+                showDiffWindow(for: fileDiff)
             })
                 .frame(minWidth: 700, minHeight: 500)
                 .navigationTitle("Code Portal")
@@ -60,7 +62,7 @@ struct CodePortalApp: App {
                     // only fall through to project removal for the main window.
                     if let keyWindow = NSApp.keyWindow,
                        let id = keyWindow.identifier?.rawValue,
-                       id == "fileViewer" || id == "about" {
+                       id == "fileViewer" || id == "about" || id == "diffViewer" {
                         keyWindow.close()
                     } else {
                         sessionManager.removeSelectedWithConfirmation()
@@ -89,6 +91,17 @@ struct CodePortalApp: App {
                     UserDefaults.standard.set(!current, forKey: "showFileTree")
                 }
                 .keyboardShortcut("b", modifiers: [.command, .shift])
+
+                Button("Toggle Git Changes") {
+                    // Show right panel if hidden, then switch to Changes tab
+                    if !UserDefaults.standard.bool(forKey: "showFileTree") {
+                        UserDefaults.standard.set(true, forKey: "showFileTree")
+                    }
+                    NotificationCenter.default.post(
+                        name: .switchToChangesTab, object: nil
+                    )
+                }
+                .keyboardShortcut("g", modifiers: [.command, .shift])
             }
         }
 
@@ -220,6 +233,29 @@ struct CodePortalApp: App {
         NSApp.activate(ignoringOtherApps: true)
     }
 
+    /// Open a diff viewer popup window for the given FileDiff.
+    /// Matches the file viewer popup pattern.
+    private func showDiffWindow(for diff: FileDiff) {
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 700, height: 500),
+            styleMask: [.titled, .closable, .resizable, .miniaturizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "Diff: \(diff.path)"
+        window.identifier = NSUserInterfaceItemIdentifier("diffViewer")
+        window.isReleasedWhenClosed = false
+        window.center()
+
+        let hostingView = NSHostingView(
+            rootView: DiffContentView(diff: diff)
+                .preferredColorScheme(colorScheme)
+        )
+        window.contentView = hostingView
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
     private func addRepoViaOpenPanel() {
         let panel = NSOpenPanel()
         panel.title = "Choose a project directory"
@@ -326,6 +362,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // No-op: all invocations are dropped in v1
     }
+}
+
+// MARK: - Notification Names
+
+extension Notification.Name {
+    static let switchToChangesTab = Notification.Name("switchToChangesTab")
 }
 
 // MARK: - UNUserNotificationCenterDelegate
